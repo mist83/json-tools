@@ -15,6 +15,11 @@ public class JsonStreamIndexer
 {
     private readonly string[] _targetPathSegments;
 
+    /// <summary>
+    /// Initializes a new <see cref="JsonStreamIndexer"/> for the specified dot-notation JSON path.
+    /// </summary>
+    /// <param name="jsonPath">Dot-notation path to the target array (e.g. <c>company.departments.employees</c>).</param>
+    /// <exception cref="System.ArgumentException">Thrown when <paramref name="jsonPath"/> is null or whitespace.</exception>
     public JsonStreamIndexer(string jsonPath)
     {
         if (string.IsNullOrWhiteSpace(jsonPath))

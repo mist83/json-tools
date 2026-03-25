@@ -1,10 +1,10 @@
 // Sample JSON data for JsonUtilities demo examples
 
 const SAMPLE_DATA = {
-    // Example 1: E-commerce product catalog with multiple collections
+    // ── Byte-Range Scanning ───────────────────────────────────────────────────
     byteRangeScan: {
         title: "E-commerce Product Catalog",
-        description: "Scan multiple collections (products, reviews, orders) and extract objects with byte positions",
+        description: "Scan multiple collections (products, reviews, orders) and extract objects with precise byte positions and MD5 hashes.",
         json: `{
   "products": [
     {
@@ -12,21 +12,24 @@ const SAMPLE_DATA = {
       "name": "Wireless Headphones",
       "price": 79.99,
       "category": "Electronics",
-      "inStock": true
+      "inStock": true,
+      "rating": 4.5
     },
     {
       "id": "prod-002",
       "name": "Running Shoes",
       "price": 129.99,
       "category": "Sports",
-      "inStock": false
+      "inStock": false,
+      "rating": 4.8
     },
     {
       "id": "prod-003",
       "name": "Coffee Maker",
       "price": 49.99,
       "category": "Home",
-      "inStock": true
+      "inStock": true,
+      "rating": 4.2
     }
   ],
   "reviews": [
@@ -34,13 +37,15 @@ const SAMPLE_DATA = {
       "productId": "prod-001",
       "rating": 5,
       "comment": "Excellent sound quality!",
-      "author": "John D."
+      "author": "John D.",
+      "verified": true
     },
     {
       "productId": "prod-002",
       "rating": 4,
       "comment": "Very comfortable for long runs",
-      "author": "Sarah M."
+      "author": "Sarah M.",
+      "verified": true
     }
   ],
   "orders": [
@@ -56,15 +61,17 @@ const SAMPLE_DATA = {
         collections: ["products", "reviews", "orders"]
     },
 
-    // Example 2: Nested user data for JSON path extraction
+    // ── JSON Path Extraction ──────────────────────────────────────────────────
     jsonPathExtract: {
-        title: "User Profile with Nested Data",
-        description: "Extract specific nested objects using JSON path notation",
+        title: "Company Org Chart",
+        description: "Navigate deeply nested JSON using dot-notation paths to extract specific arrays of objects.",
         json: `{
   "company": {
     "name": "Tech Corp",
+    "founded": 2010,
     "departments": {
       "engineering": {
+        "headcount": 3,
         "employees": [
           {
             "id": "emp-001",
@@ -90,6 +97,7 @@ const SAMPLE_DATA = {
         ]
       },
       "sales": {
+        "headcount": 2,
         "employees": [
           {
             "id": "emp-101",
@@ -111,15 +119,15 @@ const SAMPLE_DATA = {
   }
 }`,
         paths: [
-            { path: "company.departments.engineering.employees", description: "Engineering team members" },
-            { path: "company.departments.sales.employees", description: "Sales team members" }
+            { path: "company.departments.engineering.employees", description: "Engineering team (3 members)" },
+            { path: "company.departments.sales.employees", description: "Sales team (2 members)" }
         ]
     },
 
-    // Example 3: Rich content for Trie indexing
+    // ── Trie Indexing ─────────────────────────────────────────────────────────
     trieIndex: {
         title: "Blog Posts Collection",
-        description: "Index all words and search by prefix (try searching: 'tech', 'java', 'cloud')",
+        description: "Index all words and keys from JSON, then search by prefix. Try: 'tech', 'java', 'cloud', 'micro', 'dev'",
         json: `{
   "posts": [
     {
@@ -148,6 +156,83 @@ const SAMPLE_DATA = {
     }
   ]
 }`,
-        searchTerms: ["tech", "java", "cloud", "micro", "dev"]
+        searchTerms: ["tech", "java", "cloud", "micro", "dev", "arch"]
+    },
+
+    // ── JSON Validation ───────────────────────────────────────────────────────
+    validate: {
+        title: "JSON Validation",
+        description: "Validate JSON structure and UTF-8 delimiter safety. Checks for balanced braces, valid syntax, and multi-byte character safety.",
+        validJson: `{
+  "catalog": {
+    "version": "2.0",
+    "items": [
+      { "id": 1, "name": "Widget Alpha", "price": 9.99 },
+      { "id": 2, "name": "Widget Beta",  "price": 14.99 }
+    ],
+    "unicode": "日本語テスト",
+    "escaped": "He said \\"hello\\" to her"
+  }
+}`,
+        invalidJson: `{
+  "broken": {
+    "missing_closing_brace": true,
+    "items": [
+      { "id": 1, "name": "oops"
+    ]
+  }
+`
+    },
+
+    // ── Semantic Search ───────────────────────────────────────────────────────
+    semanticSearch: {
+        title: "Movie & TV Catalog",
+        description: "Build a keyword→byte-offset index from specific fields (title, cast, description). Search returns matching objects without loading the full file.",
+        json: `{
+  "shows": [
+    {
+      "id": "show-001",
+      "title": "The Shawshank Redemption",
+      "year": 1994,
+      "genre": ["Drama"],
+      "cast": ["Tim Robbins", "Morgan Freeman", "Bob Gunton"],
+      "description": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency."
+    },
+    {
+      "id": "show-002",
+      "title": "The Godfather",
+      "year": 1972,
+      "genre": ["Crime", "Drama"],
+      "cast": ["Marlon Brando", "Al Pacino", "James Caan"],
+      "description": "The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son."
+    },
+    {
+      "id": "show-003",
+      "title": "The Dark Knight",
+      "year": 2008,
+      "genre": ["Action", "Crime", "Drama"],
+      "cast": ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
+      "description": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests."
+    },
+    {
+      "id": "show-004",
+      "title": "Forrest Gump",
+      "year": 1994,
+      "genre": ["Drama", "Romance"],
+      "cast": ["Tom Hanks", "Robin Wright", "Gary Sinise"],
+      "description": "The presidencies of Kennedy and Johnson, the Vietnam War, the Watergate scandal and other historical events unfold from the perspective of an Alabama man."
+    },
+    {
+      "id": "show-005",
+      "title": "Cast Away",
+      "year": 2000,
+      "genre": ["Adventure", "Drama"],
+      "cast": ["Tom Hanks", "Helen Hunt", "Nick Searcy"],
+      "description": "A FedEx executive undergoes a physical and emotional transformation after crash landing on a deserted island."
+    }
+  ]
+}`,
+        indexedFields: ["cast", "title", "description"],
+        searchTerms: ["hanks", "crime", "dark", "morgan", "drama", "tom"]
     }
 };
