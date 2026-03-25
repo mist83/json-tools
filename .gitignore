@@ -5,3 +5,4 @@ obj/
 *.suo
 .DS_Store
 publish/
+e2e/node_modules/

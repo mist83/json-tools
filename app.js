@@ -461,12 +461,23 @@ async function semanticSearch() {
     showLoading(resultsDiv, `Building semantic index on [${fields.join(', ')}] and searching for "${searchTerm}"…`);
 
     try {
-        // Step 1: byte-range scan to get all objects
+        // Step 1: detect all top-level array keys in the JSON, then scan them
+        let detectedCollections = [];
+        try {
+            const parsed = JSON.parse(jsonContent);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                detectedCollections = Object.entries(parsed)
+                    .filter(([, v]) => Array.isArray(v))
+                    .map(([k]) => k);
+            }
+        } catch { /* fall through to auto-detect */ }
+
         const scanRes = await apiFetch('/api/scan/byte-range', {
             jsonContent,
-            targetCollections: [],
+            targetCollections: detectedCollections.length > 0 ? detectedCollections : null,
             calculateHashes: false,
-            validateUtf8: false
+            validateUtf8: false,
+            includeJsonContent: true
         });
 
         if (!scanRes.success) { showError(resultsDiv, scanRes.error || 'Scan failed'); return; }
@@ -570,15 +581,37 @@ function renderSemanticResults(container, matches, searchTerm, allObjects, field
 
     html += `</div>`;
     container.innerHTML = html;
+    // Apply Prism highlighting first, then overlay search term highlights
     highlightAll(container);
+    // After Prism runs, highlight the search term in the rendered text nodes
+    if (searchTerm) {
+        container.querySelectorAll('.semantic-match .code-wrap pre code').forEach(block => {
+            highlightTextInElement(block, searchTerm);
+        });
+    }
 }
 
 function highlightTermInJson(jsonText, term) {
-    // Escape for HTML first, then highlight the search term
-    const escaped = escHtml(jsonText);
-    if (!term) return escaped;
-    const re = new RegExp(`(${escRegex(escHtml(term))})`, 'gi');
-    return escaped.replace(re, '<mark style="background:rgba(255,193,7,0.3);color:#FFD54F;border-radius:2px;padding:0 1px">$1</mark>');
+    // Just escape HTML — search term highlighting is applied post-Prism
+    return escHtml(jsonText);
+}
+
+function highlightTextInElement(element, term) {
+    // Walk text nodes and wrap matches in <mark>
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+
+    const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    nodes.forEach(textNode => {
+        if (!re.test(textNode.textContent)) return;
+        re.lastIndex = 0;
+        const span = document.createElement('span');
+        span.innerHTML = textNode.textContent.replace(re,
+            '<mark style="background:rgba(255,193,7,0.3);color:#FFD54F;border-radius:2px;padding:0 1px">$1</mark>');
+        textNode.parentNode.replaceChild(span, textNode);
+    });
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────

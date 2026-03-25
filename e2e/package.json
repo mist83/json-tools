@@ -1,0 +1,17 @@
+{
+  "name": "json-utilities-e2e",
+  "version": "1.0.0",
+  "description": "Exhaustive Puppeteer E2E tests for json-tools.mikesendpoint.com",
+  "main": "index.js",
+  "scripts": {
+    "test": "node tests/run.js",
+    "test:headed": "HEADLESS=false node tests/run.js",
+    "test:local": "BASE_URL=http://localhost:5000 node tests/run.js"
+  },
+  "keywords": [],
+  "author": "Mike Ullman",
+  "license": "ISC",
+  "devDependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}
