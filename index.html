@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JsonUtilities Demo - JSON Scanning & Indexing Library</title>
+    <meta name="description" content="Interactive demo of JsonUtilities library featuring byte-range scanning, JSON path extraction, and Trie indexing">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%232196F3' width='100' height='100'/><text x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='monospace'>{}</text></svg>">
+    
+    <!-- Styles from styles.mikesendpoint.com -->
+    <link rel="stylesheet" href="https://styles.mikesendpoint.com/style.css">
+    
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header with Active Style Pattern -->
+        <div class="header">
+            <h1>
+                <i class="ti ti-braces"></i>
+                <span>Json<span style="color: var(--walmart-yellow);">Utilities</span></span>
+            </h1>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab" data-tab="byte-range">
+                <i class="ti ti-scan"></i>
+                Byte-Range Scanning
+            </button>
+            <button class="tab" data-tab="path-extract">
+                <i class="ti ti-route"></i>
+                JSON Path Extraction
+            </button>
+            <button class="tab" data-tab="trie-index">
+                <i class="ti ti-search"></i>
+                Trie Indexing
+            </button>
+            <button class="tab active" data-tab="about">
+                <i class="ti ti-info-circle"></i>
+                About
+            </button>
+        </div>
+
+        <!-- Sidebar + Content Layout -->
+        <div class="layout sidebar-content">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-scroll">
+                    <div class="sidebar-section">
+                        <div class="sidebar-header">Quick Actions</div>
+                        <div class="sidebar-item" id="sidebar-load-example">
+                            <i class="ti ti-file-text"></i>
+                            <span>Load Example</span>
+                        </div>
+                        <div class="sidebar-item" id="sidebar-upload-file">
+                            <i class="ti ti-upload"></i>
+                            <span>Upload JSON File</span>
+                        </div>
+                        <div class="sidebar-item" id="sidebar-clear-all">
+                            <i class="ti ti-trash"></i>
+                            <span>Clear All</span>
+                        </div>
+                    </div>
+                    
+                    <div class="sidebar-section">
+                        <div class="sidebar-header">Resources</div>
+                        <div class="sidebar-item" id="sidebar-api-docs">
+                            <i class="ti ti-api"></i>
+                            <span>API Documentation</span>
+                        </div>
+                        <div class="sidebar-item" id="sidebar-github">
+                            <i class="ti ti-brand-github"></i>
+                            <span>GitHub Repository</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="content">
+                <!-- About Tab Content -->
+                <div class="section active" id="content-about">
+                    <h2>About JsonUtilities</h2>
+                    <p class="text-secondary">A high-performance C# library for scanning large JSON files with byte-position tracking, JSON path extraction, and prefix-tree indexing.</p>
+                    
+                    <div class="grid-3 gap-md" style="margin-top: var(--space-lg);">
+                        <div class="content-card">
+                            <h3><i class="ti ti-scan"></i> Byte-Range Scanning</h3>
+                            <p>Extract objects from JSON collections with precise byte positions for efficient partial file reading.</p>
+                        </div>
+                        <div class="content-card">
+                            <h3><i class="ti ti-route"></i> JSON Path Extraction</h3>
+                            <p>Navigate nested structures using dot notation paths to extract specific data elements.</p>
+                        </div>
+                        <div class="content-card">
+                            <h3><i class="ti ti-search"></i> Trie Indexing</h3>
+                            <p>Build searchable indexes with prefix matching for fast lookups in large datasets.</p>
+                        </div>
+                    </div>
+
+                    <div class="content-card" style="margin-top: var(--space-lg);">
+                        <h3>Getting Started</h3>
+                        <p>Select a tab above to explore different features:</p>
+                        <ul>
+                            <li><strong>Byte-Range Scanning:</strong> Extract objects from JSON arrays with byte positions</li>
+                            <li><strong>JSON Path Extraction:</strong> Navigate nested JSON using dot notation</li>
+                            <li><strong>Trie Indexing:</strong> Build searchable indexes for fast prefix matching</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Byte-Range Scanning Tab Content -->
+                <div class="section" id="content-byte-range">
+                    <h2><i class="ti ti-scan"></i> Byte-Range Scanning</h2>
+                    <p class="text-secondary" id="byte-range-description">Extract objects from JSON collections with precise byte positions. Useful for reading large files efficiently.</p>
+                    
+                    <div class="grid-2 gap-md">
+                        <div>
+                            <label for="byte-range-json">JSON Input:</label>
+                            <textarea id="byte-range-json" rows="12" class="input"></textarea>
+                        </div>
+                        <div>
+                            <label for="byte-range-collections">Target Collections (comma-separated):</label>
+                            <input type="text" id="byte-range-collections" class="input" placeholder="products, reviews, orders">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="byte-range-hashes" checked>
+                                Calculate MD5 hashes
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="btn-byte-range-example" class="btn-primary">
+                            <i class="ti ti-file-text"></i> Load Example
+                        </button>
+                        <button id="btn-byte-range-scan" class="btn-secondary">
+                            <i class="ti ti-scan"></i> Scan Collections
+                        </button>
+                        <button id="btn-byte-range-upload" class="btn-secondary">
+                            <i class="ti ti-upload"></i> Upload JSON File
+                        </button>
+                        <input type="file" id="file-byte-range" accept=".json" style="display: none;">
+                    </div>
+                    
+                    <div id="byte-range-results" class="results"></div>
+                </div>
+
+                <!-- JSON Path Extraction Tab Content -->
+                <div class="section" id="content-path-extract">
+                    <h2><i class="ti ti-route"></i> JSON Path Extraction</h2>
+                    <p class="text-secondary" id="path-extract-description">Navigate nested JSON structures using dot notation paths to extract specific data elements.</p>
+                    
+                    <div class="grid-2 gap-md">
+                        <div>
+                            <label for="path-extract-json">JSON Input:</label>
+                            <textarea id="path-extract-json" rows="12" class="input"></textarea>
+                        </div>
+                        <div>
+                            <label for="path-extract-path">JSON Path:</label>
+                            <input type="text" id="path-extract-path" class="input" placeholder="company.departments.engineering.employees">
+                            <div id="path-suggestions" class="path-suggestions"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="btn-path-example" class="btn-primary">
+                            <i class="ti ti-file-text"></i> Load Example
+                        </button>
+                        <button id="btn-path-extract" class="btn-secondary">
+                            <i class="ti ti-route"></i> Extract Objects
+                        </button>
+                        <button id="btn-path-upload" class="btn-secondary">
+                            <i class="ti ti-upload"></i> Upload JSON File
+                        </button>
+                        <input type="file" id="file-path-extract" accept=".json" style="display: none;">
+                    </div>
+                    
+                    <div id="path-extract-results" class="results"></div>
+                </div>
+
+                <!-- Trie Indexing Tab Content -->
+                <div class="section" id="content-trie-index">
+                    <h2><i class="ti ti-search"></i> Trie Indexing & Search</h2>
+                    <p class="text-secondary" id="trie-index-description">Build searchable indexes with prefix matching for fast lookups in large datasets.</p>
+                    
+                    <div class="grid-2 gap-md">
+                        <div>
+                            <label for="trie-index-json">JSON Input:</label>
+                            <textarea id="trie-index-json" rows="12" class="input"></textarea>
+                        </div>
+                        <div>
+                            <label for="trie-search-term">Search Term (prefix):</label>
+                            <input type="text" id="trie-search-term" class="input" placeholder="tech">
+                            <div id="search-suggestions" class="search-suggestions"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="btn-trie-example" class="btn-primary">
+                            <i class="ti ti-file-text"></i> Load Example
+                        </button>
+                        <button id="btn-trie-index" class="btn-secondary">
+                            <i class="ti ti-search"></i> Index & Search
+                        </button>
+                        <button id="btn-trie-upload" class="btn-secondary">
+                            <i class="ti ti-upload"></i> Upload JSON File
+                        </button>
+                        <input type="file" id="file-trie-index" accept=".json" style="display: none;">
+                    </div>
+                    
+                    <div id="trie-index-results" class="results"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="sample-data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
