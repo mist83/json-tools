@@ -1,0 +1,18 @@
+{
+  "items": [
+    { "id": 1, "name": "Normal item", "value": "simple string" },
+    { "id": 2, "name": "Item with \"escaped quotes\"", "value": "has \\backslash\\ and \"quotes\"" },
+    { "id": 3, "name": "Unicode item", "value": "日本語テスト — café résumé naïve" },
+    { "id": 4, "name": "Emoji item", "value": "Hello 🌍 World 🚀 Test 💡" },
+    { "id": 5, "name": "Nested braces in string", "value": "{ not an object } and [ not an array ]" },
+    { "id": 6, "name": "Empty fields", "value": "", "optional": null },
+    { "id": 7, "name": "Numbers", "integer": 42, "float": 3.14159, "negative": -100, "scientific": 1.5e10 },
+    { "id": 8, "name": "Boolean fields", "active": true, "deleted": false },
+    { "id": 9, "name": "Nested object", "address": { "street": "123 Main St", "city": "Springfield", "zip": "12345" } },
+    { "id": 10, "name": "Array field", "tags": ["alpha", "beta", "gamma", "delta"] }
+  ],
+  "empty_collection": [],
+  "single_item": [
+    { "id": 99, "name": "Only item" }
+  ]
+}

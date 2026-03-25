@@ -1,0 +1,21 @@
+{
+  "products": [
+    { "id": "prod-001", "name": "Wireless Headphones", "price": 79.99, "category": "Electronics", "inStock": true, "tags": ["audio", "wireless", "bluetooth"] },
+    { "id": "prod-002", "name": "Running Shoes", "price": 129.99, "category": "Sports", "inStock": false, "tags": ["footwear", "running", "athletic"] },
+    { "id": "prod-003", "name": "Coffee Maker", "price": 49.99, "category": "Home", "inStock": true, "tags": ["kitchen", "coffee", "appliance"] },
+    { "id": "prod-004", "name": "Yoga Mat", "price": 34.99, "category": "Sports", "inStock": true, "tags": ["fitness", "yoga", "exercise"] },
+    { "id": "prod-005", "name": "Laptop Stand", "price": 59.99, "category": "Electronics", "inStock": true, "tags": ["desk", "ergonomic", "laptop"] }
+  ],
+  "reviews": [
+    { "productId": "prod-001", "rating": 5, "comment": "Excellent sound quality!", "author": "John D.", "verified": true },
+    { "productId": "prod-002", "rating": 4, "comment": "Very comfortable for long runs", "author": "Sarah M.", "verified": true },
+    { "productId": "prod-003", "rating": 3, "comment": "Makes decent coffee but noisy", "author": "Bob K.", "verified": false },
+    { "productId": "prod-004", "rating": 5, "comment": "Perfect thickness and grip", "author": "Alice W.", "verified": true },
+    { "productId": "prod-005", "rating": 4, "comment": "Sturdy and adjustable", "author": "Mike T.", "verified": true }
+  ],
+  "orders": [
+    { "orderId": "ord-12345", "customerId": "cust-789", "items": ["prod-001", "prod-003"], "total": 129.98, "status": "shipped" },
+    { "orderId": "ord-12346", "customerId": "cust-790", "items": ["prod-002"], "total": 129.99, "status": "delivered" },
+    { "orderId": "ord-12347", "customerId": "cust-791", "items": ["prod-004", "prod-005"], "total": 94.98, "status": "processing" }
+  ]
+}

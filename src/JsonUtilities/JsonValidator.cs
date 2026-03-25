@@ -5,10 +5,15 @@ using System.Text.Json;
 
 namespace JsonUtilities;
 
+/// <summary>
+/// Default implementation of <see cref="IJsonValidator"/> that validates JSON structure
+/// and UTF-8 delimiter safety for byte-level scanning operations.
+/// </summary>
 public class JsonValidator : IJsonValidator
 {
     private static readonly char[] JsonDelimiters = ['{', '}', '"', '\\'];
 
+    /// <inheritdoc/>
     public bool IsValidUtf8JsonDelimiter(byte[] bytes, int position)
     {
         if (bytes == null || position < 0 || position >= bytes.Length)
@@ -19,6 +24,7 @@ public class JsonValidator : IJsonValidator
         return ValidateUtf8DelimiterSafety(bytes.Take(position + 1).ToArray());
     }
 
+    /// <inheritdoc/>
     public void ValidateUtf8Safety(string json)
     {
         if (string.IsNullOrEmpty(json)) return;
@@ -33,6 +39,7 @@ public class JsonValidator : IJsonValidator
         }
     }
 
+    /// <inheritdoc/>
     public bool IsValidJsonStructure(string json)
     {
         if (string.IsNullOrWhiteSpace(json)) return false;
@@ -48,6 +55,7 @@ public class JsonValidator : IJsonValidator
         }
     }
 
+    /// <inheritdoc/>
     public bool ValidateUtf8DelimiterSafety(byte[] testBytes)
     {
         if (testBytes == null || testBytes.Length == 0) return false;
@@ -66,6 +74,11 @@ public class JsonValidator : IJsonValidator
         }
     }
 
+    /// <summary>
+    /// Exhaustively validates all 3-byte UTF-8 prefix combinations against all JSON delimiter characters.
+    /// This is a diagnostic utility — not intended for production use.
+    /// </summary>
+    /// <returns><c>true</c> if all combinations are safe; <c>false</c> if any unsafe combination is found.</returns>
     public static bool ValidateAllUtf8DelimiterCombinations()
     {
         foreach (char c in JsonDelimiters)

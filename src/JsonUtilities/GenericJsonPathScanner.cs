@@ -13,19 +13,32 @@ namespace JsonUtilities;
 
 /// <summary>
 /// High-performance dot-notation JSON path scanner.
-/// Navigates nested JSON structures using streaming reads with minimal allocations.
+/// Navigates nested JSON structures using streaming reads with minimal allocations,
+/// extracting all objects found at a specified path (e.g. <c>company.departments.engineering.employees</c>).
 /// </summary>
+/// <remarks>
+/// The scanner buffers the entire stream into a pooled <see cref="ArrayPool{T}"/> buffer,
+/// then uses a <see cref="System.IO.StreamReader"/> for character-level path navigation.
+/// Object bytes are read directly from the underlying <see cref="System.IO.MemoryStream"/> using
+/// precise byte offsets, avoiding redundant string allocations.
+/// </remarks>
 public class GenericJsonPathScanner : IJsonPathScanner
 {
     private readonly IJsonValidator _validator;
     private readonly ILogger<GenericJsonPathScanner>? _logger;
 
+    /// <summary>
+    /// Initializes a new <see cref="GenericJsonPathScanner"/> with optional validator and logger.
+    /// </summary>
+    /// <param name="validator">Custom validator implementation. Defaults to <see cref="JsonValidator"/> when <c>null</c>.</param>
+    /// <param name="logger">Optional logger for progress and warning messages.</param>
     public GenericJsonPathScanner(IJsonValidator? validator = null, ILogger<GenericJsonPathScanner>? logger = null)
     {
         _validator = validator ?? new JsonValidator();
         _logger = logger;
     }
 
+    /// <inheritdoc/>
     public async Task<JsonPathScanResult> ScanAsync(string filePath, string jsonPath, JsonPathScanOptions options)
     {
         if (!File.Exists(filePath))
@@ -40,6 +53,7 @@ public class GenericJsonPathScanner : IJsonPathScanner
         return await ScanAsync(stream, jsonPath, options);
     }
 
+    /// <inheritdoc/>
     public async Task<JsonPathScanResult> ScanAsync(Stream stream, string jsonPath, JsonPathScanOptions options)
     {
         var metadata = new ScanMetadata { StartTime = DateTime.UtcNow };
@@ -78,6 +92,7 @@ public class GenericJsonPathScanner : IJsonPathScanner
         return result;
     }
 
+    /// <inheritdoc/>
     public async Task ProcessStreamAsync(Stream stream, string jsonPath, Action<JsonObjectRange> processor, JsonPathScanOptions options)
     {
         if (string.IsNullOrWhiteSpace(jsonPath))
@@ -88,7 +103,6 @@ public class GenericJsonPathScanner : IJsonPathScanner
             for (int i = 0; i < targetSegments.Length; i++)
                 targetSegments[i] = targetSegments[i].ToLowerInvariant();
 
-        // Buffer the entire stream for random-access seeks during object extraction
         int length = (int)stream.Length;
         byte[] rentedBuf = ArrayPool<byte>.Shared.Rent(length);
         try
@@ -237,7 +251,6 @@ public class GenericJsonPathScanner : IJsonPathScanner
 
             if (depth != 0) continue;
 
-            // Object complete
             long objLen = byteOffset - startPos;
             if (objLen > options.MaxObjectSize)
             {
@@ -248,7 +261,6 @@ public class GenericJsonPathScanner : IJsonPathScanner
                 continue;
             }
 
-            // Read object bytes from base stream
             byte[] buf = ArrayPool<byte>.Shared.Rent((int)objLen);
             try
             {
@@ -259,7 +271,7 @@ public class GenericJsonPathScanner : IJsonPathScanner
 
                 string text = Encoding.UTF8.GetString(buf, 0, (int)objLen);
 
-                if (!_validator.IsValidJsonStructure(text) && !options.ContinueOnError)
+                if (!options.SkipStructureValidation && !_validator.IsValidJsonStructure(text) && !options.ContinueOnError)
                     throw new InvalidOperationException($"Invalid JSON at position {startPos}");
 
                 var range = new JsonObjectRange
@@ -282,7 +294,6 @@ public class GenericJsonPathScanner : IJsonPathScanner
             inObject = false;
             depth = 0;
 
-            // Advance to next object or end of array
             while (!reader.EndOfStream)
             {
                 c = (char)reader.Read();

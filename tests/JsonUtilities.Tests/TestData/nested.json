@@ -1,0 +1,23 @@
+{
+  "company": {
+    "name": "Tech Corp",
+    "founded": 2010,
+    "departments": {
+      "engineering": {
+        "headCount": 3,
+        "employees": [
+          { "id": "emp-001", "name": "Alice Johnson", "role": "Senior Developer", "skills": ["JavaScript", "Python", "AWS"], "yearsExperience": 8 },
+          { "id": "emp-002", "name": "Bob Smith", "role": "DevOps Engineer", "skills": ["Docker", "Kubernetes", "Terraform"], "yearsExperience": 5 },
+          { "id": "emp-003", "name": "Carol White", "role": "Frontend Developer", "skills": ["React", "TypeScript", "CSS"], "yearsExperience": 3 }
+        ]
+      },
+      "sales": {
+        "headCount": 2,
+        "employees": [
+          { "id": "emp-101", "name": "David Brown", "role": "Account Manager", "region": "West Coast", "quota": 500000 },
+          { "id": "emp-102", "name": "Emma Davis", "role": "Sales Director", "region": "East Coast", "quota": 1000000 }
+        ]
+      }
+    }
+  }
+}

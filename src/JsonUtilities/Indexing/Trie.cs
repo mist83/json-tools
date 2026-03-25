@@ -5,9 +5,11 @@ using System.Runtime.CompilerServices;
 namespace JsonUtilities.Indexing;
 
 /// <summary>
-/// Generic prefix-tree (Trie) for fast prefix-based lookups.
-/// Supports any reference type as the stored datum.
+/// A generic prefix-tree (Trie) for O(prefix_length) keyword lookups.
+/// Supports any reference type as the stored datum, making it suitable for
+/// both string-based search indexes and byte-offset semantic indexes.
 /// </summary>
+/// <typeparam name="T">The type of data stored at terminal nodes. Must be a reference type.</typeparam>
 public class Trie<T> where T : class
 {
     private readonly Node<T> _root = new('^', null, 0);
@@ -27,8 +29,11 @@ public class Trie<T> where T : class
     }
 
     /// <summary>
-    /// Search for all data items whose keyword starts with <paramref name="searchText"/>.
+    /// Returns all data items whose keyword starts with <paramref name="searchText"/>.
+    /// Performs a breadth-first traversal from the prefix node to collect all terminal descendants.
     /// </summary>
+    /// <param name="searchText">The prefix to search for. Case-sensitive.</param>
+    /// <returns>An array of all matching data items, or an empty array if no matches found.</returns>
     public T[] Search(string searchText)
     {
         if (string.IsNullOrEmpty(searchText)) return Array.Empty<T>();
@@ -56,8 +61,28 @@ public class Trie<T> where T : class
     }
 
     /// <summary>
-    /// Insert a keyword→datum mapping into the trie.
+    /// Determines whether the trie contains an exact match for the specified keyword.
+    /// More efficient than <see cref="Search"/> when you only need existence checking.
     /// </summary>
+    /// <param name="keyword">The exact keyword to look up.</param>
+    /// <returns><c>true</c> if the keyword exists in the trie; <c>false</c> otherwise.</returns>
+    public bool ContainsExact(string keyword)
+    {
+        if (string.IsNullOrEmpty(keyword)) return false;
+        Node<T> node = Prefix(keyword.AsSpan());
+        if (node.Depth != keyword.Length) return false;
+        // Check for a terminal '$' child
+        if (node.Children == null) return false;
+        foreach (var child in node.Children)
+            if (child.Value == '$') return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Inserts a keyword→datum mapping into the trie.
+    /// If the keyword already exists, an additional terminal node is added (duplicates are allowed).
+    /// </summary>
+    /// <param name="data">The <see cref="NodeDataPointer{T}"/> containing the keyword and datum to insert.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Insert(NodeDataPointer<T> data)
     {
@@ -77,8 +102,9 @@ public class Trie<T> where T : class
     }
 
     /// <summary>
-    /// Returns the total number of terminal nodes (indexed terms).
+    /// Returns the total number of terminal nodes (i.e. the number of inserted keyword→datum pairs).
     /// </summary>
+    /// <returns>The count of all terminal nodes in the trie.</returns>
     public int Count()
     {
         int count = 0;
