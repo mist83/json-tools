@@ -416,7 +416,7 @@ function renderFieldChips(fields) {
     fields.forEach(f => {
         const chip = document.createElement('span');
         chip.className = 'status-badge ' + (_semanticFields.has(f) ? 'status-success' : 'status-info');
-        chip.style.cursor = 'pointer';
+        chip.dataset.clickable = 'true';
         chip.innerHTML = `<i class="ti ti-tag"></i> ${escHtml(f)}`;
         chip.addEventListener('click', () => {
             if (_semanticFields.has(f)) _semanticFields.delete(f);
@@ -744,12 +744,12 @@ function clear(id) {
 
 function show(el) {
     if (typeof el === 'string') el = document.getElementById(el);
-    if (el) el.style.display = '';
+    if (el) el.classList.remove('hidden');
 }
 
 function hide(el) {
     if (typeof el === 'string') el = document.getElementById(el);
-    if (el) el.style.display = 'none';
+    if (el) el.classList.add('hidden');
 }
 
 function animateBars(container) {
