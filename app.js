@@ -1,7 +1,8 @@
 // JsonUtilities Demo — Frontend Application
 // ─────────────────────────────────────────────────────────────────────────────
+// Plugin registry (PluginRegistry) is loaded before this file via plugin-registry.js
+// DataGenerator is loaded before this file via data-generator.js
 
-const API_BASE = 'https://tf4qymuc4kepzxytuk3dinfjbq0lwyyw.lambda-url.us-west-2.on.aws';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const LS_KEY = 'jsontools_active_data';
 
@@ -16,6 +17,8 @@ let _semanticFields = new Set();
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize plugin registry with built-in data generators
+    DataGenerator.init();
     initTabs();
     initHome();
     initTrieLiveSearch();
@@ -576,7 +579,8 @@ function buildClientSemanticIndex(objects, fields, prefix) {
         let parsed;
         try { parsed = JSON.parse(obj.jsonContent); } catch { return; }
         const words = extractWords(parsed, fields);
-        const matchedWords = words.filter(w => w.toLowerCase().startsWith(prefix));
+        // Use pluggable MatchEngine for matching
+        const matchedWords = words.filter(w => PluginRegistry.MatchEngine.match(w, prefix));
         if (matchedWords.length > 0) matches.push({ obj, matchedWords: [...new Set(matchedWords)], idx });
     });
     return matches;
@@ -595,7 +599,8 @@ function extractWords(obj, fields) {
 
 function collectStrings(val, out) {
     if (typeof val === 'string') {
-        val.split(/[\s,.\-_/();:]+/).filter(w => w.length >= 2).forEach(w => out.push(w));
+        // Use pluggable Tokenizer
+        PluginRegistry.Tokenizer.tokenize(val).forEach(w => out.push(w));
     } else if (Array.isArray(val)) {
         val.forEach(v => collectStrings(v, out));
     } else if (typeof val === 'object' && val !== null) {
@@ -725,14 +730,9 @@ function renderValidateResults(container, res, originalJson) {
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
+// Route all API calls through the pluggable ApiTransport
 async function apiFetch(path, body) {
-    const res = await fetch(`${API_BASE}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    return res.json();
+    return PluginRegistry.ApiTransport.fetch(path, body);
 }
 
 function showLoading(container, msg) {

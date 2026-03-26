@@ -8,19 +8,21 @@ const puppeteer = require('puppeteer');
 
 const BASE_URL = process.env.BASE_URL || 'https://json-tools.mikesendpoint.com';
 const HEADLESS = process.env.HEADLESS !== 'false';
-const API_TIMEOUT = 20000; // 20s — Lambda cold start can be slow
+const API_TIMEOUT = 25000; // 25s — Lambda cold start can be slow
 const NAV_TIMEOUT = 30000;
 
 // ── Test registry ─────────────────────────────────────────────────────────────
 const suites = [
     require('./suite-page-load'),
+    require('./suite-home-tab'),
+    require('./suite-tools-tab'),
     require('./suite-byte-range'),
     require('./suite-path-extract'),
     require('./suite-trie-index'),
     require('./suite-semantic-search'),
     require('./suite-validate'),
-    require('./suite-sidebar'),
     require('./suite-about'),
+    require('./suite-plugin-registry'),
 ];
 
 // ── Runner ────────────────────────────────────────────────────────────────────
@@ -65,7 +67,6 @@ async function run() {
         }
 
         for (const test of suite.tests) {
-            const label = `    ${test.name}`;
             try {
                 await test.fn(page, { BASE_URL, API_TIMEOUT });
                 console.log(`    ✓ ${test.name}`);

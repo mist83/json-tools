@@ -1,189 +1,169 @@
-// Suite: Byte-Range Scanning Tab
-const {
-    switchTab, waitForResults, assertContains, assertNotContains,
-    setValue, countElements, exists, sleep, getValue
-} = require('./helpers');
+// Suite: Byte-Range Scanning Tool
+const { assertContains, assertNotContains, exists, sleep, waitForText, waitForResults } = require('./helpers');
+
+async function setupWithData(page) {
+    await page.evaluate(() => localStorage.clear());
+    await page.reload({ waitUntil: 'networkidle2' });
+    await page.select('#gen-type', 'ecommerce');
+    await page.select('#gen-count', '50');
+    await page.click('button[onclick="generateDataset()"]');
+    await waitForText(page, '#gen-status', 'Generated', 8000);
+    await page.click('[data-tab="tools"]');
+    await sleep(200);
+    // Ensure byte-range tool is active
+    await page.click('[data-tool="byte-range"]');
+    await sleep(200);
+}
 
 module.exports = {
-    name: 'Byte-Range Scanning',
+    name: 'Byte-Range Scanning Tool',
     tests: [
         {
-            name: 'Tab switches to byte-range correctly',
+            name: 'Byte-Range tool panel exists',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                const active = await exists(page, '#content-byte-range.active');
-                if (!active) throw new Error('byte-range section not active after tab click');
+                const el = await exists(page, '#tool-byte-range');
+                if (!el) throw new Error('#tool-byte-range not found');
             }
         },
         {
-            name: 'Load Example button populates JSON textarea',
+            name: 'Scan button exists',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                const val = await getValue(page, '#byte-range-json');
-                if (!val || val.length < 50) throw new Error('JSON textarea not populated after Load Example');
-                assertContains(val, 'products', 'Example JSON should contain "products"');
+                const btn = await exists(page, 'button[onclick="runByteRange()"]');
+                if (!btn) throw new Error('runByteRange button not found');
             }
         },
         {
-            name: 'Load Example populates collections input',
+            name: 'MD5 hashes checkbox exists and is checked by default',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                const val = await getValue(page, '#byte-range-collections');
-                assertContains(val, 'products', 'Collections input should contain "products"');
-            }
-        },
-        {
-            name: 'Scan returns success alert',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
-                const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'alert success', 'Should show success alert');
-            }
-        },
-        {
-            name: 'Scan shows correct collection count',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
-                const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'products', 'Results should show products collection');
-                assertContains(html, 'reviews', 'Results should show reviews collection');
-                assertContains(html, 'orders', 'Results should show orders collection');
-            }
-        },
-        {
-            name: 'Scan shows stat cards with numbers',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
-                const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'stat-card', 'Should render stat cards');
-                assertContains(html, 'stat-value', 'Should render stat values');
-            }
-        },
-        {
-            name: 'Scan shows byte-range visualizer bars',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
-                const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'byte-range-viz', 'Should render byte range visualizer');
-                assertContains(html, 'Byte range:', 'Should show byte range label');
-            }
-        },
-        {
-            name: 'Scan shows MD5 hashes when checkbox checked',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                // Ensure hashes checkbox is checked
                 const checked = await page.$eval('#byte-range-hashes', el => el.checked);
-                if (!checked) await page.click('#byte-range-hashes');
-                await page.click('#btn-byte-range-scan');
+                if (!checked) throw new Error('#byte-range-hashes should be checked by default');
+            }
+        },
+        {
+            name: 'Parallel checkbox exists and is unchecked by default',
+            async fn(page) {
+                const checked = await page.$eval('#byte-range-parallel', el => el.checked);
+                if (checked) throw new Error('#byte-range-parallel should be unchecked by default');
+            }
+        },
+        {
+            name: 'No dataset → error message shown',
+            async fn(page) {
+                await page.evaluate(() => localStorage.clear());
+                await page.reload({ waitUntil: 'networkidle2' });
+                await page.click('[data-tab="tools"]');
+                await sleep(200);
+                await page.click('button[onclick="runByteRange()"]');
+                await sleep(500);
+                const html = await page.$eval('#byte-range-results', el => el.innerHTML);
+                assertContains(html, 'alert-error');
+            }
+        },
+        {
+            name: 'Scan with ecommerce dataset → success alert',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'MD5:', 'Should show MD5 hash when checkbox checked');
-                assertContains(html, 'hash-line', 'Should render hash-line element');
+                assertContains(html, 'alert-success');
+                assertContains(html, 'Scan complete');
             }
         },
         {
-            name: 'Scan hides hashes when checkbox unchecked',
+            name: 'Scan shows 4 stat cards',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                // Uncheck hashes
-                const checked = await page.$eval('#byte-range-hashes', el => el.checked);
-                if (checked) await page.click('#byte-range-hashes');
-                await page.click('#btn-byte-range-scan');
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
-                assertNotContains(html, 'MD5:', 'Should NOT show MD5 hash when checkbox unchecked');
-            }
-        },
-        {
-            name: 'Scan shows syntax-highlighted JSON code blocks',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
-                await waitForResults(page, 'byte-range-results');
-                // Prism adds token spans
-                const tokenCount = await countElements(page, '#byte-range-results .token');
-                if (tokenCount === 0) throw new Error('No Prism syntax highlighting tokens found');
-            }
-        },
-        {
-            name: 'Scan shows copy buttons on code blocks',
-            async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
-                await waitForResults(page, 'byte-range-results');
-                const copyBtns = await countElements(page, '#byte-range-results .copy-btn');
-                if (copyBtns === 0) throw new Error('No copy buttons found in results');
+                assertContains(html, 'Collections');
+                assertContains(html, 'Objects Found');
+                assertContains(html, 'Bytes Processed');
+                assertContains(html, 'API Time');
             }
         },
         {
             name: 'Scan shows throughput bar',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'throughput-bar', 'Should render throughput bar');
-                assertContains(html, 'MB/s', 'Should show MB/s throughput');
+                assertContains(html, 'MB/s');
+                assertContains(html, 'throughput-fill');
             }
         },
         {
-            name: 'Empty JSON shows error message',
+            name: 'Scan shows ecommerce collections (products, reviews, orders)',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await setValue(page, '#byte-range-json', '');
-                await page.click('#btn-byte-range-scan');
-                await sleep(500);
-                const html = await page.$eval('#byte-range-results', el => el.innerHTML);
-                assertContains(html, 'alert error', 'Should show error for empty input');
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
+                const html = await waitForResults(page, 'byte-range-results');
+                assertContains(html, 'products');
+                assertContains(html, 'reviews');
+                assertContains(html, 'orders');
             }
         },
         {
-            name: 'Custom JSON with single collection works',
+            name: 'Scan shows byte range info for objects',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await setValue(page, '#byte-range-json', '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}');
-                await setValue(page, '#byte-range-collections', 'items');
-                await page.click('#btn-byte-range-scan');
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
-                assertContains(html, 'items', 'Should find items collection');
-                assertContains(html, 'Object #1', 'Should show Object #1');
-                assertContains(html, 'Object #2', 'Should show Object #2');
+                assertContains(html, 'Byte range:');
+                assertContains(html, 'Object #1');
             }
         },
         {
-            name: 'Object count in results matches expected',
+            name: 'Scan shows MD5 hashes when checkbox checked',
             async fn(page) {
-                await switchTab(page, 'byte-range');
-                await page.click('#btn-byte-range-example');
-                await sleep(300);
-                await page.click('#btn-byte-range-scan');
+                await setupWithData(page);
+                const checked = await page.$eval('#byte-range-hashes', el => el.checked);
+                if (!checked) await page.click('#byte-range-hashes');
+                await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
-                // Example has 3 products, 2 reviews, 1 order = 6 total
-                assertContains(html, '3 objects', 'products should have 3 objects');
+                assertContains(html, 'MD5:');
+            }
+        },
+        {
+            name: 'Scan hides MD5 hashes when checkbox unchecked',
+            async fn(page) {
+                await setupWithData(page);
+                const checked = await page.$eval('#byte-range-hashes', el => el.checked);
+                if (checked) await page.click('#byte-range-hashes');
+                await page.click('button[onclick="runByteRange()"]');
+                const html = await waitForResults(page, 'byte-range-results');
+                assertNotContains(html, 'MD5:');
+            }
+        },
+        {
+            name: 'Scan shows "showing first 5" label for large collections',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
+                const html = await waitForResults(page, 'byte-range-results');
+                // 50 records per collection → should show "first 5"
+                assertContains(html, 'showing first 5');
+            }
+        },
+        {
+            name: 'Copy buttons exist on result code blocks',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runByteRange()"]');
+                await waitForResults(page, 'byte-range-results');
+                const copyBtns = await page.$$('#byte-range-results button');
+                if (copyBtns.length === 0) throw new Error('No copy buttons found in results');
+            }
+        },
+        {
+            name: 'Target collections filter works',
+            async fn(page) {
+                await setupWithData(page);
+                await page.$eval('#byte-range-collections', el => { el.value = 'products'; });
+                await page.click('button[onclick="runByteRange()"]');
+                const html = await waitForResults(page, 'byte-range-results');
+                assertContains(html, 'products');
+                // Should only scan products, not reviews/orders
+                assertContains(html, '1 collection');
             }
         },
     ]

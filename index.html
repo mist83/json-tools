@@ -244,8 +244,28 @@
                                 <label>Index These Fields <span class="text-muted" style="font-weight:normal">(click to toggle)</span></label>
                                 <div id="semantic-field-chips" style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;margin-top:6px"></div>
                             </div>
+                            <div class="grid-2 gap-sm">
+                                <div>
+                                    <label>Match Engine:</label>
+                                    <select id="semantic-match-engine" onchange="PluginRegistry.MatchEngine.setActive(this.value)">
+                                        <option value="prefix">prefix — starts with query</option>
+                                        <option value="contains">contains — substring match</option>
+                                        <option value="exact">exact — case-insensitive exact</option>
+                                        <option value="fuzzy">fuzzy — tolerates typos</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Tokenizer:</label>
+                                    <select id="semantic-tokenizer" onchange="PluginRegistry.Tokenizer.setActive(this.value)">
+                                        <option value="word-split">word-split — split on punctuation</option>
+                                        <option value="whitespace">whitespace — split on spaces only</option>
+                                        <option value="ngram-2">ngram-2 — word bigrams</option>
+                                        <option value="char-ngram-3">char-ngram-3 — character trigrams</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div>
-                                <label>Search Term (prefix):</label>
+                                <label>Search Term:</label>
                                 <input type="text" id="semantic-search-term" placeholder="hanks">
                             </div>
                             <div id="semantic-term-suggestions" class="text-secondary" style="font-size:var(--text-sm)"></div>
@@ -343,6 +363,7 @@ var matches = index.SearchObjects("hanks", filePath);</code></pre>
         </div><!-- /layout -->
     </div><!-- /container -->
 
+    <script src="plugin-registry.js"></script>
     <script src="data-generator.js"></script>
     <script src="app.js"></script>
 </body>
