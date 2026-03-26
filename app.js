@@ -2,18 +2,28 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://tf4qymuc4kepzxytuk3dinfjbq0lwyyw.lambda-url.us-west-2.on.aws';
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const LS_KEY = 'jsontools_active_data';
 
-// ── Bootstrap ────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let _activeDataset = null;       // { name, type, json, sizeBytes, loadedAt }
+let _generatedJson = null;       // last generated JSON string (for download)
+let _trieDebounce = null;
+let _trieIndexed = false;
+let _semanticFields = new Set();
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
-    initSidebar();
-    initByteRange();
-    initPathExtract();
-    initTrieIndex();
-    initSemanticSearch();
-    initValidate();
+    initHome();
+    initTrieLiveSearch();
+    loadDatasetFromStorage();
+    refreshHomeStatus();
+    refreshSidebarLabel();
+    // Start with sidebar hidden (Home tab is active)
+    document.querySelector('.layout.sidebar-content').classList.add('no-sidebar');
 });
 
 // ── Tab Navigation ────────────────────────────────────────────────────────────
@@ -29,103 +39,253 @@ function switchTab(name) {
         t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.section').forEach(s =>
         s.classList.toggle('active', s.id === `content-${name}`));
+
+    // Show/hide sidebar by toggling no-sidebar on the layout
+    document.querySelector('.layout.sidebar-content').classList.toggle('no-sidebar', name !== 'tools');
+
+    if (name === 'tools') refreshNoDataBanner();
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Tool Navigation (within Tools tab) ───────────────────────────────────────
 
-function initSidebar() {
-    document.getElementById('sidebar-load-example').addEventListener('click', () => {
-        const tab = activeTab();
-        const map = {
-            'byte-range':   'btn-byte-range-example',
-            'path-extract': 'btn-path-example',
-            'trie-index':   'btn-trie-example',
-            'semantic':     'btn-semantic-example',
-            'validate':     'btn-validate-valid-example',
+function switchTool(name) {
+    document.querySelectorAll('.sidebar-item[data-tool]').forEach(item =>
+        item.classList.toggle('active', item.dataset.tool === name));
+    document.querySelectorAll('.tool-panel').forEach(panel =>
+        panel.classList.toggle('active', panel.id === `tool-${name}`));
+
+    // Populate path suggestions when switching to path-extract
+    if (name === 'path-extract' && _activeDataset) {
+        renderPathSuggestions();
+    }
+    // Populate field chips when switching to semantic
+    if (name === 'semantic' && _activeDataset) {
+        renderSemanticFieldChips();
+    }
+}
+
+// ── Dataset Management ────────────────────────────────────────────────────────
+
+function setActiveDataset(dataset) {
+    _activeDataset = dataset;
+    try {
+        // Store everything except very large JSON (>2MB) — store reference only
+        const toStore = { ...dataset };
+        if (dataset.json.length > 2 * 1024 * 1024) {
+            toStore._oversized = true;
+            toStore.json = dataset.json; // still store it, localStorage can handle ~5MB
+        }
+        localStorage.setItem(LS_KEY, JSON.stringify(toStore));
+    } catch (e) {
+        // localStorage full — just keep in memory
+    }
+    _trieIndexed = false;
+    refreshHomeStatus();
+    refreshSidebarLabel();
+    refreshNoDataBanner();
+}
+
+function loadDatasetFromStorage() {
+    try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) _activeDataset = JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+}
+
+function clearActiveDataset() {
+    _activeDataset = null;
+    _trieIndexed = false;
+    localStorage.removeItem(LS_KEY);
+    refreshHomeStatus();
+    refreshSidebarLabel();
+    refreshNoDataBanner();
+}
+
+function refreshSidebarLabel() {
+    const label = document.getElementById('sidebar-dataset-label');
+    if (!label) return;
+    if (_activeDataset) {
+        label.textContent = `${_activeDataset.name} (${fmtBytes(_activeDataset.sizeBytes)})`;
+    } else {
+        label.textContent = 'No data loaded';
+    }
+}
+
+function refreshNoDataBanner() {
+    const banner = document.getElementById('no-data-banner');
+    if (!banner) return;
+    banner.classList.toggle('visible', !_activeDataset);
+}
+
+function refreshHomeStatus() {
+    const el = document.getElementById('home-active-status');
+    if (!el) return;
+    if (_activeDataset) {
+        el.innerHTML = `<div class="alert alert-success" style="margin-bottom:var(--space-md)">
+            <i class="ti ti-database"></i>
+            <div>
+                <strong>${escHtml(_activeDataset.name)}</strong> is the active dataset —
+                ${fmtBytes(_activeDataset.sizeBytes)}, loaded ${new Date(_activeDataset.loadedAt).toLocaleTimeString()}
+                <div style="margin-top:var(--space-xs)">
+                    <button class="btn-link" onclick="switchTab('tools')"><i class="ti ti-tool"></i> Go to Tools</button>
+                    &nbsp;·&nbsp;
+                    <button class="btn-link" onclick="clearActiveDataset()"><i class="ti ti-trash"></i> Clear</button>
+                </div>
+            </div>
+        </div>`;
+    } else {
+        el.innerHTML = `<div class="alert alert-info" style="margin-bottom:var(--space-md)">
+            <i class="ti ti-info-circle"></i>
+            <span>No active dataset. Paste, upload, or generate one below.</span>
+        </div>`;
+    }
+}
+
+// ── Home Tab ──────────────────────────────────────────────────────────────────
+
+function initHome() {
+    // File upload
+    const fileInput = document.getElementById('home-file-input');
+    fileInput.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > MAX_FILE_SIZE) {
+            document.getElementById('home-upload-status').innerHTML =
+                alertBanner('error', `<i class="ti ti-x"></i> File too large (${fmtBytes(file.size)}). Max 5 MB.`);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const json = ev.target.result;
+            try {
+                JSON.parse(json); // validate
+                setActiveDataset({
+                    name: file.name.replace('.json', ''),
+                    type: 'upload',
+                    json,
+                    sizeBytes: new TextEncoder().encode(json).length,
+                    loadedAt: Date.now()
+                });
+                document.getElementById('home-upload-status').innerHTML =
+                    alertBanner('success', `<i class="ti ti-check"></i> Loaded <strong>${escHtml(file.name)}</strong>`);
+            } catch {
+                document.getElementById('home-upload-status').innerHTML =
+                    alertBanner('error', '<i class="ti ti-x"></i> Invalid JSON file.');
+            }
         };
-        if (map[tab]) document.getElementById(map[tab]).click();
+        reader.readAsText(file);
     });
 
-    document.getElementById('sidebar-upload-file').addEventListener('click', () => {
-        const tab = activeTab();
-        const map = {
-            'byte-range':   'btn-byte-range-upload',
-            'path-extract': 'btn-path-upload',
-            'trie-index':   'btn-trie-upload',
-            'semantic':     'btn-semantic-upload',
-            'validate':     'btn-validate-upload',
-        };
-        if (map[tab]) document.getElementById(map[tab]).click();
+    // Drag & drop
+    const dropZone = document.getElementById('home-drop-zone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--color-primary)'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border-color)'; });
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--border-color)';
+        const file = e.dataTransfer.files[0];
+        if (file) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
     });
-
-    document.getElementById('sidebar-clear-all').addEventListener('click', () => {
-        clearTab(activeTab());
-    });
-
-    document.getElementById('sidebar-api-docs').addEventListener('click', () =>
-        window.open(`${API_BASE}/`, '_blank'));
-
-    document.getElementById('sidebar-github').addEventListener('click', () =>
-        window.open('https://github.com/mist83/json-tools', '_blank'));
 }
 
-function activeTab() {
-    return document.querySelector('.tab.active')?.dataset.tab ?? 'byte-range';
+function loadFromPaste() {
+    const json = document.getElementById('home-paste-json').value.trim();
+    const name = document.getElementById('home-paste-name').value.trim() || 'Pasted JSON';
+    if (!json) return;
+    try {
+        JSON.parse(json);
+        setActiveDataset({
+            name,
+            type: 'paste',
+            json,
+            sizeBytes: new TextEncoder().encode(json).length,
+            loadedAt: Date.now()
+        });
+    } catch {
+        document.getElementById('home-active-status').innerHTML =
+            alertBanner('error', '<i class="ti ti-x"></i> Invalid JSON — check your input.');
+        refreshHomeStatus();
+    }
 }
 
-function clearTab(tab) {
-    const clears = {
-        'byte-range':   () => { $val('byte-range-json', ''); $val('byte-range-collections', ''); clear('byte-range-results'); },
-        'path-extract': () => { $val('path-extract-json', ''); $val('path-extract-path', ''); clear('path-extract-results'); clear('path-suggestions'); },
-        'trie-index':   () => { $val('trie-index-json', ''); $val('trie-search-term', ''); clear('trie-index-results'); clear('search-suggestions'); hide('trie-live-indicator'); },
-        'semantic':     () => { $val('semantic-json', ''); $val('semantic-search-term', ''); clear('semantic-results'); clear('semantic-term-suggestions'); },
-        'validate':     () => { $val('validate-json', ''); clear('validate-results'); },
-    };
-    clears[tab]?.();
+function generateDataset() {
+    const type = document.getElementById('gen-type').value;
+    const count = parseInt(document.getElementById('gen-count').value, 10);
+    const statusEl = document.getElementById('gen-status');
+    const downloadBtn = document.getElementById('btn-download-generated');
+
+    statusEl.innerHTML = `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div> Generating ${count.toLocaleString()} records…</div>`;
+    downloadBtn.classList.add('hidden');
+
+    // Use setTimeout to let the spinner render before blocking JS
+    setTimeout(() => {
+        try {
+            const data = DataGenerator.generate(type, count);
+            const json = JSON.stringify(data, null, 2);
+            _generatedJson = json;
+
+            const typeLabel = document.getElementById('gen-type').options[document.getElementById('gen-type').selectedIndex].text.split(' (')[0];
+            const name = `Generated ${typeLabel} (${count.toLocaleString()} records)`;
+
+            setActiveDataset({
+                name,
+                type,
+                json,
+                sizeBytes: new TextEncoder().encode(json).length,
+                loadedAt: Date.now()
+            });
+
+            // Count total records
+            const totalRecords = Object.values(data).reduce((sum, arr) => sum + arr.length, 0);
+            const collections = Object.keys(data).map(k => `${k} (${data[k].length})`).join(', ');
+
+            statusEl.innerHTML = alertBanner('success',
+                `<i class="ti ti-check"></i> Generated <strong>${totalRecords.toLocaleString()}</strong> records — ${escHtml(collections)} — ${fmtBytes(new TextEncoder().encode(json).length)}`
+            );
+            downloadBtn.classList.remove('hidden');
+        } catch (err) {
+            statusEl.innerHTML = alertBanner('error', `<i class="ti ti-x"></i> Generation failed: ${err.message}`);
+        }
+    }, 10);
 }
 
-// ── Byte-Range Scanning ───────────────────────────────────────────────────────
-
-function initByteRange() {
-    document.getElementById('btn-byte-range-example').addEventListener('click', () => {
-        const d = SAMPLE_DATA.byteRangeScan;
-        $val('byte-range-json', d.json);
-        $val('byte-range-collections', d.collections.join(', '));
-        clear('byte-range-results');
-    });
-
-    document.getElementById('btn-byte-range-scan').addEventListener('click', scanByteRange);
-    document.getElementById('btn-byte-range-upload').addEventListener('click', () =>
-        document.getElementById('file-byte-range').click());
-    document.getElementById('file-byte-range').addEventListener('change', e =>
-        handleFileUpload(e.target.files[0], 'byte-range-json'));
+function downloadGenerated() {
+    if (!_generatedJson) return;
+    const type = document.getElementById('gen-type').value;
+    const count = document.getElementById('gen-count').value;
+    const blob = new Blob([_generatedJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}-${count}-records.json`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
-async function scanByteRange() {
-    const jsonContent = $val('byte-range-json').trim();
-    const collectionsRaw = $val('byte-range-collections').trim();
+// ── Tool: Byte-Range Scan ─────────────────────────────────────────────────────
+
+async function runByteRange() {
+    const resultsDiv = document.getElementById('byte-range-results');
+    if (!_activeDataset) { showError(resultsDiv, 'No dataset loaded. Go to Home first.'); return; }
+
+    const collectionsRaw = document.getElementById('byte-range-collections').value.trim();
     const calculateHashes = document.getElementById('byte-range-hashes').checked;
     const parallel = document.getElementById('byte-range-parallel').checked;
-    const resultsDiv = document.getElementById('byte-range-results');
-
-    if (!jsonContent) { showError(resultsDiv, 'Please provide JSON content'); return; }
-
     const collections = collectionsRaw ? collectionsRaw.split(',').map(c => c.trim()).filter(Boolean) : [];
+
     showLoading(resultsDiv, 'Scanning collections…');
 
-    const t0 = performance.now();
     try {
         const res = await apiFetch('/api/scan/byte-range', {
-            jsonContent,
+            jsonContent: _activeDataset.json,
             targetCollections: collections,
             calculateHashes,
             validateUtf8: true,
             parallelProcessing: parallel
         });
-        const elapsed = performance.now() - t0;
 
         if (res.success) {
-            renderByteRangeResults(resultsDiv, res, jsonContent, elapsed);
+            renderByteRangeResults(resultsDiv, res, _activeDataset.json);
         } else {
             showError(resultsDiv, res.error || 'Scan failed');
         }
@@ -134,7 +294,7 @@ async function scanByteRange() {
     }
 }
 
-function renderByteRangeResults(container, result, originalJson, clientMs) {
+function renderByteRangeResults(container, result, originalJson) {
     const { collections, stats } = result;
     const totalBytes = new TextEncoder().encode(originalJson).length;
     const throughputMBs = (totalBytes / 1024 / 1024) / (stats.processingTimeMs / 1000);
@@ -142,7 +302,6 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
 
     let html = alertBanner('success', `<i class="ti ti-check"></i> Scan complete — ${stats.totalObjectsFound} objects in ${stats.collectionsScanned} collection(s)`);
 
-    // Stats grid
     html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(stats.collectionsScanned, 'Collections')}
         ${statCard(stats.totalObjectsFound, 'Objects Found')}
@@ -150,7 +309,6 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
         ${statCard(stats.processingTimeMs.toFixed(1) + ' ms', 'API Time')}
     </div>`;
 
-    // Throughput bar
     html += `<div style="margin:var(--space-sm) 0 var(--space-md)">
         <div class="text-muted" style="font-size:var(--text-xs);margin-bottom:4px">Throughput: ${throughputMBs.toFixed(1)} MB/s</div>
         <div style="height:6px;background:var(--border-color);border-radius:var(--radius-sm);overflow:hidden">
@@ -158,11 +316,15 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
         </div>
     </div>`;
 
-    // Collections
     for (const [name, objects] of Object.entries(collections)) {
-        html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-folder"></i> ${escHtml(name)} <span class="status-badge status-info">${objects.length} objects</span></h3>`;
+        const preview = objects.slice(0, 5); // show first 5 only
+        html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)">
+            <i class="ti ti-folder"></i> ${escHtml(name)}
+            <span class="status-badge status-info">${objects.length} objects</span>
+            ${objects.length > 5 ? `<span class="text-muted" style="font-size:var(--text-sm);font-weight:normal"> — showing first 5</span>` : ''}
+        </h3>`;
 
-        objects.forEach((obj, i) => {
+        preview.forEach((obj, i) => {
             const pct = totalBytes > 0 ? ((obj.startPosition / totalBytes) * 100).toFixed(1) : 0;
             const widthPct = totalBytes > 0 ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2) : 1;
 
@@ -182,7 +344,7 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
                 </div>
                 ${obj.hash ? `<div style="padding:4px var(--space-md);font-size:var(--text-xs);color:var(--text-muted);font-family:var(--font-mono);border-bottom:1px solid var(--border-color)">MD5: <span style="color:var(--color-primary)">${obj.hash}</span></div>` : ''}
                 <div style="position:relative">
-                    <pre style="margin:0;border-radius:0;max-height:220px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                    <pre style="margin:0;border-radius:0;max-height:160px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
                     <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
                 </div>
             </div>`;
@@ -193,44 +355,33 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
     animateBars(container);
 }
 
-// ── JSON Path Extraction ──────────────────────────────────────────────────────
+// ── Tool: Path Extraction ─────────────────────────────────────────────────────
 
-function initPathExtract() {
-    document.getElementById('btn-path-example').addEventListener('click', () => {
-        const d = SAMPLE_DATA.jsonPathExtract;
-        $val('path-extract-json', d.json);
-        $val('path-extract-path', d.paths[0].path);
-        const sug = document.getElementById('path-suggestions');
-        sug.innerHTML = '<strong>Try these paths:</strong><br>' +
-            d.paths.map(p =>
-                `<button class="btn-link" onclick="setPath('${p.path}')">${p.path}</button> — ${p.description}`
-            ).join('<br>');
-        clear('path-extract-results');
-    });
-
-    document.getElementById('btn-path-extract').addEventListener('click', extractByPath);
-    document.getElementById('btn-path-upload').addEventListener('click', () =>
-        document.getElementById('file-path-extract').click());
-    document.getElementById('file-path-extract').addEventListener('change', e =>
-        handleFileUpload(e.target.files[0], 'path-extract-json'));
+function renderPathSuggestions() {
+    const sug = document.getElementById('path-suggestions');
+    if (!sug || !_activeDataset) return;
+    const paths = DataGenerator.suggestedPaths(_activeDataset.type) || [];
+    if (paths.length === 0) { sug.innerHTML = ''; return; }
+    sug.innerHTML = '<strong>Suggested paths:</strong> ' +
+        paths.map(p => `<button class="btn-link" onclick="document.getElementById('path-extract-path').value='${p.path}'">${p.path}</button> — ${p.description}`).join(' &nbsp;·&nbsp; ');
 }
 
-function setPath(path) { $val('path-extract-path', path); }
+async function runPathExtract() {
+    const resultsDiv = document.getElementById('path-extract-results');
+    if (!_activeDataset) { showError(resultsDiv, 'No dataset loaded. Go to Home first.'); return; }
 
-async function extractByPath() {
-    const jsonContent = $val('path-extract-json').trim();
-    const jsonPath    = $val('path-extract-path').trim();
-    const resultsDiv  = document.getElementById('path-extract-results');
-
-    if (!jsonContent) { showError(resultsDiv, 'Please provide JSON content'); return; }
-    if (!jsonPath)    { showError(resultsDiv, 'Please provide a JSON path'); return; }
+    const jsonPath = document.getElementById('path-extract-path').value.trim();
+    if (!jsonPath) { showError(resultsDiv, 'Please enter a JSON path.'); return; }
 
     showLoading(resultsDiv, `Extracting objects at "${jsonPath}"…`);
 
     try {
-        const res = await apiFetch('/api/pathscan/extract', { jsonContent, jsonPath });
+        const res = await apiFetch('/api/pathscan/extract', {
+            jsonContent: _activeDataset.json,
+            jsonPath
+        });
         if (res.success) {
-            renderPathResults(resultsDiv, res, jsonPath, jsonContent);
+            renderPathResults(resultsDiv, res, jsonPath, _activeDataset.json);
         } else {
             showError(resultsDiv, res.error || 'Extraction failed');
         }
@@ -257,9 +408,10 @@ function renderPathResults(container, result, jsonPath, originalJson) {
         return;
     }
 
-    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-list"></i> Extracted Objects</h3>`;
+    const preview = objects.slice(0, 5);
+    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-list"></i> Extracted Objects ${objects.length > 5 ? `<span class="text-muted" style="font-size:var(--text-sm);font-weight:normal">— showing first 5 of ${objects.length}</span>` : ''}</h3>`;
 
-    objects.forEach((obj, i) => {
+    preview.forEach((obj, i) => {
         const pct = totalBytes > 0 ? ((obj.startPosition / totalBytes) * 100).toFixed(1) : 0;
         const widthPct = totalBytes > 0 ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2) : 1;
 
@@ -278,7 +430,7 @@ function renderPathResults(container, result, jsonPath, originalJson) {
                 </div>
             </div>
             <div style="position:relative">
-                <pre style="margin:0;border-radius:0;max-height:220px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                <pre style="margin:0;border-radius:0;max-height:160px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
                 <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
             </div>
         </div>`;
@@ -288,57 +440,32 @@ function renderPathResults(container, result, jsonPath, originalJson) {
     animateBars(container);
 }
 
-// ── Trie Indexing ─────────────────────────────────────────────────────────────
+// ── Tool: Trie Index ──────────────────────────────────────────────────────────
 
-let _trieDebounce = null;
-let _trieIndexed = false;
-
-function initTrieIndex() {
-    document.getElementById('btn-trie-example').addEventListener('click', () => {
-        const d = SAMPLE_DATA.trieIndex;
-        $val('trie-index-json', d.json);
-        $val('trie-search-term', d.searchTerms[0]);
-        const sug = document.getElementById('search-suggestions');
-        sug.innerHTML = '<strong>Try searching:</strong> ' +
-            d.searchTerms.map(t =>
-                `<button class="btn-link" onclick="setSearchTerm('${t}')">${t}</button>`
-            ).join(' ');
-        clear('trie-index-results');
-        _trieIndexed = false;
-    });
-
-    document.getElementById('btn-trie-index').addEventListener('click', indexAndSearch);
-    document.getElementById('btn-trie-upload').addEventListener('click', () =>
-        document.getElementById('file-trie-index').click());
-    document.getElementById('file-trie-index').addEventListener('change', e =>
-        handleFileUpload(e.target.files[0], 'trie-index-json'));
-
+function initTrieLiveSearch() {
     document.getElementById('trie-search-term').addEventListener('input', () => {
         if (!_trieIndexed) return;
         clearTimeout(_trieDebounce);
-        _trieDebounce = setTimeout(indexAndSearch, 400);
+        _trieDebounce = setTimeout(runTrieIndex, 400);
     });
 }
 
-function setSearchTerm(term) {
-    $val('trie-search-term', term);
-    if (_trieIndexed) indexAndSearch();
-}
+async function runTrieIndex() {
+    const resultsDiv = document.getElementById('trie-index-results');
+    if (!_activeDataset) { showError(resultsDiv, 'No dataset loaded. Go to Home first.'); return; }
 
-async function indexAndSearch() {
-    const jsonContent = $val('trie-index-json').trim();
-    const searchTerm  = $val('trie-search-term').trim();
-    const resultsDiv  = document.getElementById('trie-index-results');
-    const liveInd     = document.getElementById('trie-live-indicator');
-
-    if (!jsonContent) { showError(resultsDiv, 'Please provide JSON content'); return; }
+    const searchTerm = document.getElementById('trie-search-term').value.trim();
+    const liveInd = document.getElementById('trie-live-indicator');
 
     if (!_trieIndexed) showLoading(resultsDiv, 'Building trie index…');
 
     try {
-        const res = await apiFetch('/api/trie/index', { jsonContent, searchTerm });
+        const res = await apiFetch('/api/trie/index', {
+            jsonContent: _activeDataset.json,
+            searchTerm
+        });
         _trieIndexed = true;
-        show(liveInd);
+        liveInd.classList.remove('hidden');
 
         if (res.success) {
             renderTrieResults(resultsDiv, res, searchTerm);
@@ -363,15 +490,12 @@ function renderTrieResults(container, result, searchTerm) {
 
     if (matches.length > 0) {
         html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-search"></i> Matching Terms <span class="status-badge status-enabled">${matches.length} results</span></h3>`;
-        html += `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;flex-wrap:wrap;padding:var(--space-md);background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm)">`;
+        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;padding:var(--space-md);background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm)">`;
         matches.forEach(m => {
             const highlighted = searchTerm
-                ? escHtml(m).replace(
-                    new RegExp(`^(${escRegex(escHtml(searchTerm))})`, 'i'),
-                    '<strong>$1</strong>'
-                  )
+                ? escHtml(m).replace(new RegExp(`^(${escRegex(escHtml(searchTerm))})`, 'i'), '<strong>$1</strong>')
                 : escHtml(m);
-            html += `<span class="status-badge status-info" style="cursor:pointer" onclick="setSearchTerm('${escHtml(m)}')">${highlighted}</span>`;
+            html += `<span class="status-badge status-info" style="cursor:pointer" onclick="document.getElementById('trie-search-term').value='${escHtml(m)}';runTrieIndex()">${highlighted}</span>`;
         });
         html += `</div>`;
     } else if (searchTerm) {
@@ -381,41 +505,19 @@ function renderTrieResults(container, result, searchTerm) {
     container.innerHTML = html;
 }
 
-// ── Semantic Search ───────────────────────────────────────────────────────────
+// ── Tool: Semantic Search ─────────────────────────────────────────────────────
 
-let _semanticFields = new Set(['cast', 'title', 'description']);
-
-function initSemanticSearch() {
-    document.getElementById('btn-semantic-example').addEventListener('click', () => {
-        const d = SAMPLE_DATA.semanticSearch;
-        $val('semantic-json', d.json);
-        $val('semantic-search-term', d.searchTerms[0]);
-
-        _semanticFields = new Set(d.indexedFields);
-        renderFieldChips(d.indexedFields);
-
-        const sug = document.getElementById('semantic-term-suggestions');
-        sug.innerHTML = '<strong>Try searching:</strong> ' +
-            d.searchTerms.map(t =>
-                `<button class="btn-link" onclick="setSemanticTerm('${t}')">${t}</button>`
-            ).join(' ');
-
-        clear('semantic-results');
-    });
-
-    document.getElementById('btn-semantic-search').addEventListener('click', semanticSearch);
-    document.getElementById('btn-semantic-upload').addEventListener('click', () =>
-        document.getElementById('file-semantic').click());
-    document.getElementById('file-semantic').addEventListener('change', e =>
-        handleFileUpload(e.target.files[0], 'semantic-json'));
-}
-
-function renderFieldChips(fields) {
+function renderSemanticFieldChips() {
     const container = document.getElementById('semantic-field-chips');
+    if (!container || !_activeDataset) return;
+
+    const fields = DataGenerator.semanticFields(_activeDataset.type) || ['name', 'title', 'description'];
+    _semanticFields = new Set(fields);
+
     container.innerHTML = '';
     fields.forEach(f => {
         const chip = document.createElement('span');
-        chip.className = 'status-badge ' + (_semanticFields.has(f) ? 'status-success' : 'status-info');
+        chip.className = 'status-badge status-success';
         chip.dataset.clickable = 'true';
         chip.innerHTML = `<i class="ti ti-tag"></i> ${escHtml(f)}`;
         chip.addEventListener('click', () => {
@@ -427,34 +529,29 @@ function renderFieldChips(fields) {
     });
 }
 
-function setSemanticTerm(term) { $val('semantic-search-term', term); }
+async function runSemanticSearch() {
+    const resultsDiv = document.getElementById('semantic-results');
+    if (!_activeDataset) { showError(resultsDiv, 'No dataset loaded. Go to Home first.'); return; }
 
-async function semanticSearch() {
-    const jsonContent = $val('semantic-json').trim();
-    const searchTerm  = $val('semantic-search-term').trim();
-    const resultsDiv  = document.getElementById('semantic-results');
-
-    if (!jsonContent) { showError(resultsDiv, 'Please provide JSON content'); return; }
-    if (!searchTerm)  { showError(resultsDiv, 'Please enter a search term'); return; }
+    const searchTerm = document.getElementById('semantic-search-term').value.trim();
+    if (!searchTerm) { showError(resultsDiv, 'Please enter a search term.'); return; }
 
     const fields = [..._semanticFields];
-    if (fields.length === 0) { showError(resultsDiv, 'Please select at least one field to index'); return; }
+    if (fields.length === 0) { showError(resultsDiv, 'Please select at least one field to index.'); return; }
 
     showLoading(resultsDiv, `Building semantic index on [${fields.join(', ')}] and searching for "${searchTerm}"…`);
 
     try {
         let detectedCollections = [];
         try {
-            const parsed = JSON.parse(jsonContent);
+            const parsed = JSON.parse(_activeDataset.json);
             if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                detectedCollections = Object.entries(parsed)
-                    .filter(([, v]) => Array.isArray(v))
-                    .map(([k]) => k);
+                detectedCollections = Object.entries(parsed).filter(([, v]) => Array.isArray(v)).map(([k]) => k);
             }
         } catch { /* fall through */ }
 
         const scanRes = await apiFetch('/api/scan/byte-range', {
-            jsonContent,
+            jsonContent: _activeDataset.json,
             targetCollections: detectedCollections.length > 0 ? detectedCollections : null,
             calculateHashes: false,
             validateUtf8: false,
@@ -464,9 +561,9 @@ async function semanticSearch() {
         if (!scanRes.success) { showError(resultsDiv, scanRes.error || 'Scan failed'); return; }
 
         const allObjects = Object.values(scanRes.collections).flat();
-        const index = buildClientSemanticIndex(allObjects, fields, searchTerm.toLowerCase());
+        const matches = buildClientSemanticIndex(allObjects, fields, searchTerm.toLowerCase());
 
-        renderSemanticResults(resultsDiv, index, searchTerm, allObjects, fields, scanRes.stats);
+        renderSemanticResults(resultsDiv, matches, searchTerm, allObjects, fields, scanRes.stats);
     } catch (err) {
         showError(resultsDiv, `Error: ${err.message}`);
     }
@@ -474,31 +571,22 @@ async function semanticSearch() {
 
 function buildClientSemanticIndex(objects, fields, prefix) {
     const matches = [];
-    const lowerPrefix = prefix.toLowerCase();
-
     objects.forEach((obj, idx) => {
         if (!obj.jsonContent) return;
         let parsed;
         try { parsed = JSON.parse(obj.jsonContent); } catch { return; }
-
         const words = extractWords(parsed, fields);
-        const matchedWords = words.filter(w => w.toLowerCase().startsWith(lowerPrefix));
-
-        if (matchedWords.length > 0) {
-            matches.push({ obj, matchedWords: [...new Set(matchedWords)], idx });
-        }
+        const matchedWords = words.filter(w => w.toLowerCase().startsWith(prefix));
+        if (matchedWords.length > 0) matches.push({ obj, matchedWords: [...new Set(matchedWords)], idx });
     });
-
     return matches;
 }
 
 function extractWords(obj, fields) {
     const words = [];
     if (typeof obj !== 'object' || obj === null) return words;
-
     for (const [key, val] of Object.entries(obj)) {
-        const shouldIndex = fields.length === 0 ||
-            fields.some(f => f.toLowerCase() === key.toLowerCase());
+        const shouldIndex = fields.length === 0 || fields.some(f => f.toLowerCase() === key.toLowerCase());
         if (!shouldIndex) continue;
         collectStrings(val, words);
     }
@@ -517,7 +605,7 @@ function collectStrings(val, out) {
 
 function renderSemanticResults(container, matches, searchTerm, allObjects, fields, stats) {
     let html = alertBanner('success',
-        `<i class="ti ti-brain"></i> Indexed <strong>${allObjects.length}</strong> objects across fields [${fields.map(f => `<code>${escHtml(f)}</code>`).join(', ')}] — found <strong>${matches.length}</strong> match(es) for "<strong>${escHtml(searchTerm)}</strong>"`
+        `<i class="ti ti-brain"></i> Indexed <strong>${allObjects.length}</strong> objects across [${fields.map(f => `<code>${escHtml(f)}</code>`).join(', ')}] — found <strong>${matches.length}</strong> match(es) for "<strong>${escHtml(searchTerm)}</strong>"`
     );
 
     html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
@@ -533,9 +621,10 @@ function renderSemanticResults(container, matches, searchTerm, allObjects, field
         return;
     }
 
-    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${matches.length} results</span></h3>`;
+    const preview = matches.slice(0, 10);
+    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${matches.length} results</span>${matches.length > 10 ? ` <span class="text-muted" style="font-size:var(--text-sm);font-weight:normal">— showing first 10</span>` : ''}</h3>`;
 
-    matches.forEach(({ obj, matchedWords }, i) => {
+    preview.forEach(({ obj, matchedWords }, i) => {
         html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
             <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
                 <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
@@ -544,13 +633,11 @@ function renderSemanticResults(container, matches, searchTerm, allObjects, field
                     <span class="status-badge status-warning">byte ${obj.startPosition.toLocaleString()}</span>
                 </div>
                 <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:4px">
-                    ${matchedWords.slice(0, 5).map(w =>
-                        `<span class="status-badge status-success"><i class="ti ti-tag"></i> ${escHtml(w)}</span>`
-                    ).join('')}
+                    ${matchedWords.slice(0, 5).map(w => `<span class="status-badge status-success"><i class="ti ti-tag"></i> ${escHtml(w)}</span>`).join('')}
                 </div>
             </div>
             <div style="position:relative">
-                <pre style="margin:0;border-radius:0;max-height:220px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                <pre style="margin:0;border-radius:0;max-height:160px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
                 <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
             </div>
         </div>`;
@@ -558,11 +645,8 @@ function renderSemanticResults(container, matches, searchTerm, allObjects, field
 
     container.innerHTML = html;
 
-    // Highlight search term in rendered text nodes
     if (searchTerm) {
-        container.querySelectorAll('pre code').forEach(block => {
-            highlightTextInElement(block, searchTerm);
-        });
+        container.querySelectorAll('pre code').forEach(block => highlightTextInElement(block, searchTerm));
     }
 }
 
@@ -571,7 +655,6 @@ function highlightTextInElement(element, term) {
     const nodes = [];
     let node;
     while ((node = walker.nextNode())) nodes.push(node);
-
     const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     nodes.forEach(textNode => {
         if (!re.test(textNode.textContent)) return;
@@ -583,36 +666,18 @@ function highlightTextInElement(element, term) {
     });
 }
 
-// ── Validation ────────────────────────────────────────────────────────────────
+// ── Tool: Validate ────────────────────────────────────────────────────────────
 
-function initValidate() {
-    document.getElementById('btn-validate-valid-example').addEventListener('click', () => {
-        $val('validate-json', SAMPLE_DATA.validate.validJson);
-        clear('validate-results');
-    });
-    document.getElementById('btn-validate-invalid-example').addEventListener('click', () => {
-        $val('validate-json', SAMPLE_DATA.validate.invalidJson);
-        clear('validate-results');
-    });
-    document.getElementById('btn-validate-run').addEventListener('click', validateJson);
-    document.getElementById('btn-validate-upload').addEventListener('click', () =>
-        document.getElementById('file-validate').click());
-    document.getElementById('file-validate').addEventListener('change', e =>
-        handleFileUpload(e.target.files[0], 'validate-json'));
-}
-
-async function validateJson() {
-    const jsonContent = $val('validate-json').trim();
-    const resultsDiv  = document.getElementById('validate-results');
-
-    if (!jsonContent) { showError(resultsDiv, 'Please provide JSON content'); return; }
+async function runValidate() {
+    const resultsDiv = document.getElementById('validate-results');
+    if (!_activeDataset) { showError(resultsDiv, 'No dataset loaded. Go to Home first.'); return; }
 
     showLoading(resultsDiv, 'Validating…');
 
     try {
-        const res = await apiFetch('/api/scan/validate', { jsonContent });
+        const res = await apiFetch('/api/scan/validate', { jsonContent: _activeDataset.json });
         if (res.success) {
-            renderValidateResults(resultsDiv, res, jsonContent);
+            renderValidateResults(resultsDiv, res, _activeDataset.json);
         } else {
             showError(resultsDiv, res.error || 'Validation failed');
         }
@@ -670,21 +735,6 @@ async function apiFetch(path, body) {
     return res.json();
 }
 
-function handleFileUpload(file, targetId) {
-    if (!file) return;
-    if (file.size > MAX_FILE_SIZE) {
-        showError(document.getElementById(targetId).closest('.section').querySelector('[id$="-results"]') || document.body,
-            `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 5 MB.`);
-        return;
-    }
-    if (!file.name.endsWith('.json')) {
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = e => $val(targetId, e.target.result);
-    reader.readAsText(file);
-}
-
 function showLoading(container, msg) {
     container.innerHTML = `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:10px;align-items:center;padding:var(--space-lg);color:var(--text-secondary)"><div class="spinner" style="width:18px;height:18px;border-width:2px"></div>${escHtml(msg)}</div>`;
 }
@@ -707,16 +757,10 @@ function statCard(value, label) {
 
 function escHtml(str) {
     if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function escRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+function escRegex(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function prettyJson(str) {
     try { return JSON.stringify(JSON.parse(str), null, 2); }
@@ -728,28 +772,6 @@ function fmtBytes(n) {
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
     return `${(n / 1024 / 1024).toFixed(2)} MB`;
-}
-
-function $val(id, val) {
-    const el = document.getElementById(id);
-    if (!el) return '';
-    if (val !== undefined) { el.value = val; return val; }
-    return el.value;
-}
-
-function clear(id) {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = '';
-}
-
-function show(el) {
-    if (typeof el === 'string') el = document.getElementById(el);
-    if (el) el.classList.remove('hidden');
-}
-
-function hide(el) {
-    if (typeof el === 'string') el = document.getElementById(el);
-    if (el) el.classList.add('hidden');
 }
 
 function animateBars(container) {
