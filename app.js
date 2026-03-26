@@ -205,9 +205,9 @@ function loadFromPaste() {
             loadedAt: Date.now()
         });
     } catch {
+        // Show error WITHOUT calling refreshHomeStatus() which would overwrite it
         document.getElementById('home-active-status').innerHTML =
             alertBanner('error', '<i class="ti ti-x"></i> Invalid JSON — check your input.');
-        refreshHomeStatus();
     }
 }
 

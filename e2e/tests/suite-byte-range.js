@@ -1,6 +1,17 @@
 // Suite: Byte-Range Scanning Tool
+// NOTE: This suite generates data ONCE at the start and reuses it across tests.
+// Each test navigates to the tool but does NOT reload the page.
 const { assertContains, assertNotContains, exists, sleep, waitForText, waitForResults } = require('./helpers');
 
+// Navigate to byte-range tool with data already loaded (no page reload)
+async function goToByteRange(page) {
+    await page.click('[data-tab="tools"]');
+    await sleep(100);
+    await page.click('[data-tool="byte-range"]');
+    await sleep(100);
+}
+
+// Generate data and navigate to byte-range tool (used for first test in suite)
 async function setupWithData(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
@@ -8,11 +19,7 @@ async function setupWithData(page) {
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
     await waitForText(page, '#gen-status', 'Generated', 8000);
-    await page.click('[data-tab="tools"]');
-    await sleep(200);
-    // Ensure byte-range tool is active
-    await page.click('[data-tool="byte-range"]');
-    await sleep(200);
+    await goToByteRange(page);
 }
 
 module.exports = {
@@ -72,7 +79,7 @@ module.exports = {
         {
             name: 'Scan shows 4 stat cards',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertContains(html, 'Collections');
@@ -84,7 +91,7 @@ module.exports = {
         {
             name: 'Scan shows throughput bar',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertContains(html, 'MB/s');
@@ -94,7 +101,7 @@ module.exports = {
         {
             name: 'Scan shows ecommerce collections (products, reviews, orders)',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertContains(html, 'products');
@@ -105,7 +112,7 @@ module.exports = {
         {
             name: 'Scan shows byte range info for objects',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertContains(html, 'Byte range:');
@@ -115,7 +122,7 @@ module.exports = {
         {
             name: 'Scan shows MD5 hashes when checkbox checked',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 const checked = await page.$eval('#byte-range-hashes', el => el.checked);
                 if (!checked) await page.click('#byte-range-hashes');
                 await page.click('button[onclick="runByteRange()"]');
@@ -126,28 +133,29 @@ module.exports = {
         {
             name: 'Scan hides MD5 hashes when checkbox unchecked',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 const checked = await page.$eval('#byte-range-hashes', el => el.checked);
                 if (checked) await page.click('#byte-range-hashes');
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertNotContains(html, 'MD5:');
+                // Restore checkbox
+                await page.click('#byte-range-hashes');
             }
         },
         {
             name: 'Scan shows "showing first 5" label for large collections',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
-                // 50 records per collection → should show "first 5"
                 assertContains(html, 'showing first 5');
             }
         },
         {
             name: 'Copy buttons exist on result code blocks',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.click('button[onclick="runByteRange()"]');
                 await waitForResults(page, 'byte-range-results');
                 const copyBtns = await page.$$('#byte-range-results button');
@@ -157,13 +165,14 @@ module.exports = {
         {
             name: 'Target collections filter works',
             async fn(page) {
-                await setupWithData(page);
+                await goToByteRange(page);
                 await page.$eval('#byte-range-collections', el => { el.value = 'products'; });
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertContains(html, 'products');
-                // Should only scan products, not reviews/orders
                 assertContains(html, '1 collection');
+                // Clear filter
+                await page.$eval('#byte-range-collections', el => { el.value = ''; });
             }
         },
     ]

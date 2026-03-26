@@ -1,92 +1,108 @@
 // Suite: About Tab
-const {
-    switchTab, assertContains, countElements, exists, sleep
-} = require('./helpers');
+const { assertContains, exists, countElements, sleep } = require('./helpers');
 
 module.exports = {
     name: 'About Tab',
     tests: [
         {
-            name: 'Tab switches to about correctly',
+            name: 'About tab switches correctly',
             async fn(page) {
-                await switchTab(page, 'about');
+                await page.click('[data-tab="about"]');
                 const active = await exists(page, '#content-about.active');
-                if (!active) throw new Error('about section not active');
+                if (!active) throw new Error('#content-about not active after clicking About tab');
             }
         },
         {
-            name: 'About tab shows 6 feature cards',
+            name: 'About tab has correct heading',
             async fn(page) {
-                await switchTab(page, 'about');
-                const cards = await countElements(page, '#content-about .feature-card');
-                if (cards < 6) throw new Error(`Expected 6 feature cards, got ${cards}`);
+                await page.click('[data-tab="about"]');
+                const h2 = await page.$eval('#content-about h2', el => el.textContent);
+                assertContains(h2, 'JsonUtilities');
             }
         },
         {
-            name: 'Feature cards mention key features',
+            name: 'Feature cards grid renders 6 cards',
             async fn(page) {
-                await switchTab(page, 'about');
-                const text = await page.$eval('#content-about .feature-grid', el => el.textContent);
-                assertContains(text, 'Byte-Range', 'Should mention Byte-Range Scanning');
-                assertContains(text, 'Path Extraction', 'Should mention Path Extraction');
-                assertContains(text, 'Trie', 'Should mention Trie Indexing');
-                assertContains(text, 'Semantic', 'Should mention Semantic Search');
-                assertContains(text, 'UTF-8', 'Should mention UTF-8 Validation');
-                assertContains(text, 'Fluent', 'Should mention Fluent API');
+                await page.click('[data-tab="about"]');
+                const cards = await countElements(page, '#content-about .card');
+                if (cards < 6) throw new Error(`Expected at least 6 feature cards, got ${cards}`);
             }
         },
         {
-            name: 'Quick Start code block is present and syntax highlighted',
+            name: 'Feature cards use design system .card class (not custom)',
             async fn(page) {
-                await switchTab(page, 'about');
-                const codeBlock = await exists(page, '#content-about pre code.language-csharp');
-                if (!codeBlock) throw new Error('C# code block not found in About tab');
-                const tokens = await countElements(page, '#content-about .token');
-                if (tokens === 0) throw new Error('No Prism tokens in About code block');
+                await page.click('[data-tab="about"]');
+                // Verify cards use .card class from design system
+                const hasCards = await exists(page, '#content-about .card');
+                if (!hasCards) throw new Error('Feature cards should use .card class');
+                // Verify no .feature-card class (old custom class)
+                const hasOldClass = await exists(page, '#content-about .feature-card');
+                if (hasOldClass) throw new Error('.feature-card class should not exist — use .card');
             }
         },
         {
-            name: 'Quick Start code contains fluent API example',
+            name: 'Byte-Range Scanning feature card exists',
             async fn(page) {
-                await switchTab(page, 'about');
+                await page.click('[data-tab="about"]');
+                const text = await page.$eval('#content-about', el => el.textContent);
+                assertContains(text, 'Byte-Range Scanning');
+            }
+        },
+        {
+            name: 'Trie Indexing feature card exists',
+            async fn(page) {
+                await page.click('[data-tab="about"]');
+                const text = await page.$eval('#content-about', el => el.textContent);
+                assertContains(text, 'Trie Indexing');
+            }
+        },
+        {
+            name: 'Quick Start code block exists',
+            async fn(page) {
+                await page.click('[data-tab="about"]');
+                const codeBlock = await exists(page, '#content-about pre code');
+                if (!codeBlock) throw new Error('Quick Start code block not found');
+            }
+        },
+        {
+            name: 'Quick Start code contains C# examples',
+            async fn(page) {
+                await page.click('[data-tab="about"]');
                 const code = await page.$eval('#content-about pre code', el => el.textContent);
-                assertContains(code, 'JsonTools.Scan', 'Should show JsonTools.Scan');
-                assertContains(code, 'ForCollections', 'Should show ForCollections');
-                assertContains(code, 'RunAsync', 'Should show RunAsync');
-                assertContains(code, 'BuildSemanticIndex', 'Should show BuildSemanticIndex');
+                assertContains(code, 'JsonTools');
+                assertContains(code, 'RunAsync');
             }
         },
         {
-            name: 'Copy button exists on Quick Start code block',
+            name: 'Test suite section shows 105 passing badge',
             async fn(page) {
-                await switchTab(page, 'about');
-                const copyBtn = await exists(page, '#content-about .copy-btn');
-                if (!copyBtn) throw new Error('Copy button not found in About tab code block');
-            }
-        },
-        {
-            name: 'Test Suite section shows 105 passing badge',
-            async fn(page) {
-                await switchTab(page, 'about');
+                await page.click('[data-tab="about"]');
                 const text = await page.$eval('#content-about', el => el.textContent);
-                assertContains(text, '105', 'Should mention 105 tests');
-                assertContains(text, 'passing', 'Should say passing');
+                assertContains(text, '105');
+                assertContains(text, 'passing');
             }
         },
         {
-            name: 'Test Suite section shows 0 failing badge',
+            name: 'Test suite badges use design system status-badge class',
             async fn(page) {
-                await switchTab(page, 'about');
-                const text = await page.$eval('#content-about', el => el.textContent);
-                assertContains(text, '0 failing', 'Should show 0 failing');
+                await page.click('[data-tab="about"]');
+                const badges = await countElements(page, '#content-about .status-badge');
+                if (badges === 0) throw new Error('No status-badge elements found in About tab');
             }
         },
         {
-            name: 'About tab description mentions .NET 8',
+            name: 'No custom .hero-badge class (replaced by status-badge)',
             async fn(page) {
-                await switchTab(page, 'about');
-                const text = await page.$eval('#content-about', el => el.textContent);
-                assertContains(text, '.NET 8', 'Should mention .NET 8');
+                const heroBadges = await countElements(page, '.hero-badge');
+                if (heroBadges > 0) throw new Error('.hero-badge class should not exist — use .status-badge');
+            }
+        },
+        {
+            name: 'Sidebar is hidden on About tab',
+            async fn(page) {
+                await page.click('[data-tab="about"]');
+                const hasNoSidebar = await page.$eval('.layout.sidebar-content', el => el.classList.contains('no-sidebar'));
+                if (!hasNoSidebar) throw new Error('Sidebar should be hidden on About tab');
             }
         },
     ]

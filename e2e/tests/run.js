@@ -67,15 +67,27 @@ async function run() {
         }
 
         for (const test of suite.tests) {
+            // Skip if page/browser is no longer usable
+            if (page.isClosed()) break;
+
             try {
                 await test.fn(page, { BASE_URL, API_TIMEOUT });
                 console.log(`    ✓ ${test.name}`);
                 passed++;
             } catch (e) {
+                const msg = e.message || '';
+                // If browser/frame is gone, stop this suite
+                if (msg.includes('detached Frame') || msg.includes('Connection closed') || msg.includes('Target closed')) {
+                    console.log(`    ✗ ${test.name}`);
+                    console.log(`        → ${msg}`);
+                    failed++;
+                    failures.push({ suite: suite.name, test: test.name, error: msg });
+                    break; // stop suite, open fresh page for next suite
+                }
                 console.log(`    ✗ ${test.name}`);
-                console.log(`        → ${e.message}`);
+                console.log(`        → ${msg}`);
                 failed++;
-                failures.push({ suite: suite.name, test: test.name, error: e.message });
+                failures.push({ suite: suite.name, test: test.name, error: msg });
                 // Reload page for next test to avoid state bleed
                 try {
                     await page.goto(BASE_URL, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT });

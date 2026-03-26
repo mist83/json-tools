@@ -1,164 +1,139 @@
-// Suite: JSON Validation Tab
-const {
-    switchTab, waitForResults, assertContains, assertNotContains,
-    setValue, countElements, exists, sleep, getValue
-} = require('./helpers');
+// Suite: JSON Validation Tool
+const { assertContains, exists, sleep, waitForResults, waitForText } = require('./helpers');
+
+async function setupWithData(page) {
+    await page.evaluate(() => localStorage.clear());
+    await page.reload({ waitUntil: 'networkidle2' });
+    await page.select('#gen-type', 'ecommerce');
+    await page.select('#gen-count', '50');
+    await page.click('button[onclick="generateDataset()"]');
+    await waitForText(page, '#gen-status', 'Generated', 8000);
+    await page.click('[data-tab="tools"]');
+    await sleep(200);
+    await page.click('[data-tool="validate"]');
+    await sleep(200);
+}
 
 module.exports = {
-    name: 'JSON Validation',
+    name: 'JSON Validation Tool',
     tests: [
         {
-            name: 'Tab switches to validate correctly',
+            name: 'Validate tool panel exists',
             async fn(page) {
-                await switchTab(page, 'validate');
-                const active = await exists(page, '#content-validate.active');
-                if (!active) throw new Error('validate section not active');
+                const el = await exists(page, '#tool-validate');
+                if (!el) throw new Error('#tool-validate not found');
             }
         },
         {
-            name: 'Load Valid Example populates textarea',
+            name: 'Validate button exists',
             async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-valid-example');
+                const btn = await exists(page, 'button[onclick="runValidate()"]');
+                if (!btn) throw new Error('runValidate button not found');
+            }
+        },
+        {
+            name: 'No dataset → error message shown',
+            async fn(page) {
+                await page.evaluate(() => localStorage.clear());
+                await page.reload({ waitUntil: 'networkidle2' });
+                await page.click('[data-tab="tools"]');
+                await page.click('[data-tool="validate"]');
                 await sleep(200);
-                const val = await getValue(page, '#validate-json');
-                assertContains(val, 'catalog', 'Valid example should contain catalog');
-                assertContains(val, 'unicode', 'Valid example should contain unicode field');
-            }
-        },
-        {
-            name: 'Load Invalid Example populates textarea with broken JSON',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-invalid-example');
-                await sleep(200);
-                const val = await getValue(page, '#validate-json');
-                assertContains(val, 'broken', 'Invalid example should contain "broken"');
-            }
-        },
-        {
-            name: 'Valid JSON passes both checks',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-valid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'alert success', 'Valid JSON should show success alert');
-                assertContains(html, 'All checks passed', 'Should say all checks passed');
-            }
-        },
-        {
-            name: 'Valid JSON shows JSON Structure check as pass',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-valid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'validation-check pass', 'Should show pass validation check');
-                assertContains(html, 'JSON Structure', 'Should show JSON Structure label');
-            }
-        },
-        {
-            name: 'Valid JSON shows UTF-8 Delimiter Safety as pass',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-valid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'UTF-8 Delimiter Safety', 'Should show UTF-8 check');
-                // Both checks should be pass
-                const passCount = (html.match(/validation-check pass/g) || []).length;
-                if (passCount < 2) throw new Error(`Expected 2 pass checks, got ${passCount}`);
-            }
-        },
-        {
-            name: 'Invalid JSON shows error alert',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-invalid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'alert error', 'Invalid JSON should show error alert');
-                assertContains(html, 'Validation failed', 'Should say validation failed');
-            }
-        },
-        {
-            name: 'Invalid JSON shows JSON Structure as fail',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-invalid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'validation-check fail', 'Should show fail validation check');
-            }
-        },
-        {
-            name: 'Validation shows bytes checked stat',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-valid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'Bytes Checked', 'Should show Bytes Checked stat');
-            }
-        },
-        {
-            name: 'Validation shows Overall stat',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await page.click('#btn-validate-valid-example');
-                await sleep(200);
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'Overall', 'Should show Overall stat');
-                assertContains(html, '✓ Valid', 'Should show ✓ Valid for valid JSON');
-            }
-        },
-        {
-            name: 'Custom valid JSON validates correctly',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await setValue(page, '#validate-json', '{"name":"test","values":[1,2,3],"nested":{"ok":true}}');
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'alert success', 'Custom valid JSON should pass');
-            }
-        },
-        {
-            name: 'Custom invalid JSON fails validation',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await setValue(page, '#validate-json', '{bad json here');
-                await page.click('#btn-validate-run');
-                const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'alert error', 'Custom invalid JSON should fail');
-            }
-        },
-        {
-            name: 'Empty input shows error',
-            async fn(page) {
-                await switchTab(page, 'validate');
-                await setValue(page, '#validate-json', '');
-                await page.click('#btn-validate-run');
+                await page.click('button[onclick="runValidate()"]');
                 await sleep(500);
                 const html = await page.$eval('#validate-results', el => el.innerHTML);
-                assertContains(html, 'alert error', 'Empty input should show error');
+                assertContains(html, 'alert-error');
             }
         },
         {
-            name: 'Unicode JSON validates correctly',
+            name: 'Validate generated dataset → all checks pass',
             async fn(page) {
-                await switchTab(page, 'validate');
-                await setValue(page, '#validate-json', '{"greeting":"こんにちは","emoji":"🎉","arabic":"مرحبا"}');
-                await page.click('#btn-validate-run');
+                await setupWithData(page);
+                await page.click('button[onclick="runValidate()"]');
                 const html = await waitForResults(page, 'validate-results');
-                assertContains(html, 'alert success', 'Unicode JSON should pass validation');
+                assertContains(html, 'alert-success');
+                assertContains(html, 'All checks passed');
+            }
+        },
+        {
+            name: 'Validate shows bytes checked stat',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runValidate()"]');
+                const html = await waitForResults(page, 'validate-results');
+                assertContains(html, 'Bytes Checked');
+                assertContains(html, 'KB');
+            }
+        },
+        {
+            name: 'Validate shows JSON Structure check card',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runValidate()"]');
+                const html = await waitForResults(page, 'validate-results');
+                assertContains(html, 'JSON Structure');
+                assertContains(html, 'Balanced braces');
+            }
+        },
+        {
+            name: 'Validate shows UTF-8 Delimiter Safety check card',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runValidate()"]');
+                const html = await waitForResults(page, 'validate-results');
+                assertContains(html, 'UTF-8 Delimiter Safety');
+            }
+        },
+        {
+            name: 'Validate shows ✓ Valid overall status',
+            async fn(page) {
+                await setupWithData(page);
+                await page.click('button[onclick="runValidate()"]');
+                const html = await waitForResults(page, 'validate-results');
+                assertContains(html, '✓ Valid');
+            }
+        },
+        {
+            name: 'Validate pasted invalid JSON → failure shown',
+            async fn(page) {
+                await page.evaluate(() => localStorage.clear());
+                await page.reload({ waitUntil: 'networkidle2' });
+                // Paste invalid JSON
+                await page.$eval('#home-paste-json', el => { el.value = '{"broken": [1, 2,}'; });
+                await page.click('button[onclick="loadFromPaste()"]');
+                await sleep(300);
+                // If paste succeeded (it shouldn't for invalid JSON), go to validate
+                // If it failed, the error is shown on home — that's fine, test the error path
+                const homeStatus = await page.$eval('#home-active-status', el => el.innerHTML);
+                if (homeStatus.includes('alert-error')) {
+                    // Expected — invalid JSON rejected at paste time
+                    assertContains(homeStatus, 'alert-error');
+                } else {
+                    // If somehow loaded, validate should fail
+                    await page.click('[data-tab="tools"]');
+                    await page.click('[data-tool="validate"]');
+                    await sleep(200);
+                    await page.click('button[onclick="runValidate()"]');
+                    const html = await waitForResults(page, 'validate-results');
+                    assertContains(html, 'alert-error');
+                }
+            }
+        },
+        {
+            name: 'Movies dataset validates successfully',
+            async fn(page) {
+                await page.evaluate(() => localStorage.clear());
+                await page.reload({ waitUntil: 'networkidle2' });
+                await page.select('#gen-type', 'movies');
+                await page.select('#gen-count', '50');
+                await page.click('button[onclick="generateDataset()"]');
+                await waitForText(page, '#gen-status', 'Generated', 8000);
+                await page.click('[data-tab="tools"]');
+                await page.click('[data-tool="validate"]');
+                await sleep(200);
+                await page.click('button[onclick="runValidate()"]');
+                const html = await waitForResults(page, 'validate-results');
+                assertContains(html, 'alert-success');
             }
         },
     ]
