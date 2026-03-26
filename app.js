@@ -14,8 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initTrieIndex();
     initSemanticSearch();
     initValidate();
-    // Highlight static code blocks in About tab
-    if (window.Prism) Prism.highlightAll();
 });
 
 // ── Tab Navigation ────────────────────────────────────────────────────────────
@@ -61,8 +59,7 @@ function initSidebar() {
     });
 
     document.getElementById('sidebar-clear-all').addEventListener('click', () => {
-        const tab = activeTab();
-        clearTab(tab);
+        clearTab(activeTab());
     });
 
     document.getElementById('sidebar-api-docs').addEventListener('click', () =>
@@ -141,12 +138,12 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
     const { collections, stats } = result;
     const totalBytes = new TextEncoder().encode(originalJson).length;
     const throughputMBs = (totalBytes / 1024 / 1024) / (stats.processingTimeMs / 1000);
-    const barPct = Math.min(100, throughputMBs * 10); // scale: 10 MB/s = 100%
+    const barPct = Math.min(100, throughputMBs * 10);
 
-    let html = alert('success', `<i class="ti ti-check"></i> Scan complete — ${stats.totalObjectsFound} objects in ${stats.collectionsScanned} collection(s)`);
+    let html = alertBanner('success', `<i class="ti ti-check"></i> Scan complete — ${stats.totalObjectsFound} objects in ${stats.collectionsScanned} collection(s)`);
 
-    // Stats
-    html += `<div class="stats-grid">
+    // Stats grid
+    html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(stats.collectionsScanned, 'Collections')}
         ${statCard(stats.totalObjectsFound, 'Objects Found')}
         ${statCard(fmtBytes(stats.bytesProcessed), 'Bytes Processed')}
@@ -154,53 +151,45 @@ function renderByteRangeResults(container, result, originalJson, clientMs) {
     </div>`;
 
     // Throughput bar
-    html += `<div class="throughput-bar-wrap">
-        <div class="throughput-bar-label">Throughput: ${throughputMBs.toFixed(1)} MB/s</div>
-        <div class="throughput-bar-track"><div class="throughput-bar-fill" style="width:${barPct}%"></div></div>
+    html += `<div style="margin:var(--space-sm) 0 var(--space-md)">
+        <div class="text-muted" style="font-size:var(--text-xs);margin-bottom:4px">Throughput: ${throughputMBs.toFixed(1)} MB/s</div>
+        <div style="height:6px;background:var(--border-color);border-radius:var(--radius-sm);overflow:hidden">
+            <div class="throughput-fill" style="height:100%;background:var(--color-primary);border-radius:var(--radius-sm);width:0%;transition:width 0.6s ease" data-target="${barPct}%"></div>
+        </div>
     </div>`;
 
     // Collections
     for (const [name, objects] of Object.entries(collections)) {
-        html += `<div class="result-section">
-            <h3><i class="ti ti-folder"></i> ${escHtml(name)} <span class="badge">${objects.length} objects</span></h3>`;
+        html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-folder"></i> ${escHtml(name)} <span class="status-badge status-info">${objects.length} objects</span></h3>`;
 
         objects.forEach((obj, i) => {
-            const pct = totalBytes > 0
-                ? ((obj.startPosition / totalBytes) * 100).toFixed(1)
-                : 0;
-            const widthPct = totalBytes > 0
-                ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2)
-                : 1;
+            const pct = totalBytes > 0 ? ((obj.startPosition / totalBytes) * 100).toFixed(1) : 0;
+            const widthPct = totalBytes > 0 ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2) : 1;
 
-            html += `<div class="result-item">
-                <div class="result-item-header">
-                    <div class="left">
-                        <span style="font-weight:600">Object #${i + 1}</span>
-                        <span class="badge"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
+            html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
+                <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
+                    <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+                        <strong>Object #${i + 1}</strong>
+                        <span class="status-badge status-info"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
                     </div>
-                    <div class="right">
-                        <span class="badge orange">idx ${obj.itemIndex}</span>
+                    <span class="status-badge status-warning">idx ${obj.itemIndex}</span>
+                </div>
+                <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border-color);font-size:var(--text-xs);color:var(--text-secondary)">
+                    Byte range: <strong>${obj.startPosition.toLocaleString()}</strong> → <strong>${(obj.startPosition + obj.length).toLocaleString()}</strong> (${pct}% into file)
+                    <div style="height:4px;background:var(--border-color);border-radius:2px;margin-top:4px;position:relative;overflow:hidden">
+                        <div style="position:absolute;height:100%;background:var(--color-warning);border-radius:2px;left:${pct}%;width:${widthPct}%;min-width:3px"></div>
                     </div>
                 </div>
-                <div class="byte-range-viz">
-                    <span>Byte range: <strong>${obj.startPosition.toLocaleString()}</strong> → <strong>${(obj.startPosition + obj.length).toLocaleString()}</strong> (${pct}% into file)</span>
-                    <div class="range-bar">
-                        <div class="range-fill" style="left:${pct}%;width:${widthPct}%"></div>
-                    </div>
-                </div>
-                ${obj.hash ? `<div class="hash-line">MD5: <span>${obj.hash}</span></div>` : ''}
-                <div class="code-wrap">
-                    <pre><code class="language-json">${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
-                    <button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
+                ${obj.hash ? `<div style="padding:4px var(--space-md);font-size:var(--text-xs);color:var(--text-muted);font-family:var(--font-mono);border-bottom:1px solid var(--border-color)">MD5: <span style="color:var(--color-primary)">${obj.hash}</span></div>` : ''}
+                <div style="position:relative">
+                    <pre style="margin:0;border-radius:0;max-height:220px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                    <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
                 </div>
             </div>`;
         });
-
-        html += `</div>`;
     }
 
     container.innerHTML = html;
-    highlightAll(container);
     animateBars(container);
 }
 
@@ -254,52 +243,48 @@ function renderPathResults(container, result, jsonPath, originalJson) {
     const { objects, stats } = result;
     const totalBytes = new TextEncoder().encode(originalJson).length;
 
-    let html = alert('success', `<i class="ti ti-check"></i> Found <strong>${objects.length}</strong> object(s) at <code>${escHtml(jsonPath)}</code>`);
+    let html = alertBanner('success', `<i class="ti ti-check"></i> Found <strong>${objects.length}</strong> object(s) at <code>${escHtml(jsonPath)}</code>`);
 
-    html += `<div class="stats-grid">
+    html += `<div class="grid-3 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(objects.length, 'Objects Found')}
         ${statCard(fmtBytes(stats.bytesProcessed), 'Bytes Processed')}
         ${statCard(stats.processingTimeMs.toFixed(1) + ' ms', 'API Time')}
     </div>`;
 
     if (objects.length === 0) {
-        html += alert('warning', '<i class="ti ti-alert-triangle"></i> No objects found at the specified path');
+        html += alertBanner('warning', '<i class="ti ti-alert-triangle"></i> No objects found at the specified path');
         container.innerHTML = html;
         return;
     }
 
-    html += `<div class="result-section"><h3><i class="ti ti-list"></i> Extracted Objects</h3>`;
+    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-list"></i> Extracted Objects</h3>`;
 
     objects.forEach((obj, i) => {
         const pct = totalBytes > 0 ? ((obj.startPosition / totalBytes) * 100).toFixed(1) : 0;
         const widthPct = totalBytes > 0 ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2) : 1;
 
-        html += `<div class="result-item">
-            <div class="result-item-header">
-                <div class="left">
-                    <span style="font-weight:600">Object #${i + 1}</span>
-                    <span class="badge"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
+        html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
+            <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
+                <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+                    <strong>Object #${i + 1}</strong>
+                    <span class="status-badge status-info"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
                 </div>
-                <div class="right">
-                    ${obj.hash ? `<span class="badge purple" title="${obj.hash}">MD5: ${obj.hash.slice(0,8)}…</span>` : ''}
+                ${obj.hash ? `<span class="status-badge status-disabled" title="${obj.hash}">MD5: ${obj.hash.slice(0,8)}…</span>` : ''}
+            </div>
+            <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border-color);font-size:var(--text-xs);color:var(--text-secondary)">
+                Byte range: <strong>${obj.startPosition.toLocaleString()}</strong> → <strong>${(obj.startPosition + obj.length).toLocaleString()}</strong> (${pct}% into file)
+                <div style="height:4px;background:var(--border-color);border-radius:2px;margin-top:4px;position:relative;overflow:hidden">
+                    <div style="position:absolute;height:100%;background:var(--color-warning);border-radius:2px;left:${pct}%;width:${widthPct}%;min-width:3px"></div>
                 </div>
             </div>
-            <div class="byte-range-viz">
-                <span>Byte range: <strong>${obj.startPosition.toLocaleString()}</strong> → <strong>${(obj.startPosition + obj.length).toLocaleString()}</strong> (${pct}% into file)</span>
-                <div class="range-bar">
-                    <div class="range-fill" style="left:${pct}%;width:${widthPct}%"></div>
-                </div>
-            </div>
-            <div class="code-wrap">
-                <pre><code class="language-json">${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
-                <button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
+            <div style="position:relative">
+                <pre style="margin:0;border-radius:0;max-height:220px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
             </div>
         </div>`;
     });
 
-    html += `</div>`;
     container.innerHTML = html;
-    highlightAll(container);
     animateBars(container);
 }
 
@@ -328,7 +313,6 @@ function initTrieIndex() {
     document.getElementById('file-trie-index').addEventListener('change', e =>
         handleFileUpload(e.target.files[0], 'trie-index-json'));
 
-    // Live search: debounce 400ms after typing
     document.getElementById('trie-search-term').addEventListener('input', () => {
         if (!_trieIndexed) return;
         clearTimeout(_trieDebounce);
@@ -369,30 +353,29 @@ async function indexAndSearch() {
 function renderTrieResults(container, result, searchTerm) {
     const { matches, totalIndexed } = result;
 
-    let html = alert('success', `<i class="ti ti-check"></i> Index built — <strong>${totalIndexed.toLocaleString()}</strong> terms indexed`);
+    let html = alertBanner('success', `<i class="ti ti-check"></i> Index built — <strong>${totalIndexed.toLocaleString()}</strong> terms indexed`);
 
-    html += `<div class="stats-grid">
+    html += `<div class="grid-3 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(totalIndexed.toLocaleString(), 'Terms Indexed')}
         ${statCard(searchTerm ? `"${escHtml(searchTerm)}"` : '—', 'Search Prefix')}
         ${statCard(matches.length, 'Matches')}
     </div>`;
 
     if (matches.length > 0) {
-        html += `<div class="result-section">
-            <h3><i class="ti ti-search"></i> Matching Terms <span class="badge green">${matches.length} results</span></h3>
-            <div class="tag-cloud">`;
+        html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-search"></i> Matching Terms <span class="status-badge status-enabled">${matches.length} results</span></h3>`;
+        html += `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;flex-wrap:wrap;padding:var(--space-md);background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm)">`;
         matches.forEach(m => {
             const highlighted = searchTerm
                 ? escHtml(m).replace(
                     new RegExp(`^(${escRegex(escHtml(searchTerm))})`, 'i'),
-                    '<span class="match-highlight">$1</span>'
+                    '<strong>$1</strong>'
                   )
                 : escHtml(m);
-            html += `<span class="tag" onclick="setSearchTerm('${escHtml(m)}')">${highlighted}</span>`;
+            html += `<span class="status-badge status-info" style="cursor:pointer" onclick="setSearchTerm('${escHtml(m)}')">${highlighted}</span>`;
         });
-        html += `</div></div>`;
+        html += `</div>`;
     } else if (searchTerm) {
-        html += alert('warning', `<i class="ti ti-alert-triangle"></i> No matches for "<strong>${escHtml(searchTerm)}</strong>"`);
+        html += alertBanner('warning', `<i class="ti ti-alert-triangle"></i> No matches for "<strong>${escHtml(searchTerm)}</strong>"`);
     }
 
     container.innerHTML = html;
@@ -408,11 +391,9 @@ function initSemanticSearch() {
         $val('semantic-json', d.json);
         $val('semantic-search-term', d.searchTerms[0]);
 
-        // Build field chips
         _semanticFields = new Set(d.indexedFields);
         renderFieldChips(d.indexedFields);
 
-        // Term suggestions
         const sug = document.getElementById('semantic-term-suggestions');
         sug.innerHTML = '<strong>Try searching:</strong> ' +
             d.searchTerms.map(t =>
@@ -434,12 +415,13 @@ function renderFieldChips(fields) {
     container.innerHTML = '';
     fields.forEach(f => {
         const chip = document.createElement('span');
-        chip.className = 'field-chip' + (_semanticFields.has(f) ? ' active' : '');
+        chip.className = 'status-badge ' + (_semanticFields.has(f) ? 'status-success' : 'status-info');
+        chip.style.cursor = 'pointer';
         chip.innerHTML = `<i class="ti ti-tag"></i> ${escHtml(f)}`;
         chip.addEventListener('click', () => {
             if (_semanticFields.has(f)) _semanticFields.delete(f);
             else _semanticFields.add(f);
-            chip.classList.toggle('active', _semanticFields.has(f));
+            chip.className = 'status-badge ' + (_semanticFields.has(f) ? 'status-success' : 'status-info');
         });
         container.appendChild(chip);
     });
@@ -461,7 +443,6 @@ async function semanticSearch() {
     showLoading(resultsDiv, `Building semantic index on [${fields.join(', ')}] and searching for "${searchTerm}"…`);
 
     try {
-        // Step 1: detect all top-level array keys in the JSON, then scan them
         let detectedCollections = [];
         try {
             const parsed = JSON.parse(jsonContent);
@@ -470,7 +451,7 @@ async function semanticSearch() {
                     .filter(([, v]) => Array.isArray(v))
                     .map(([k]) => k);
             }
-        } catch { /* fall through to auto-detect */ }
+        } catch { /* fall through */ }
 
         const scanRes = await apiFetch('/api/scan/byte-range', {
             jsonContent,
@@ -482,7 +463,6 @@ async function semanticSearch() {
 
         if (!scanRes.success) { showError(resultsDiv, scanRes.error || 'Scan failed'); return; }
 
-        // Step 2: client-side semantic index (trie of keyword → object indices)
         const allObjects = Object.values(scanRes.collections).flat();
         const index = buildClientSemanticIndex(allObjects, fields, searchTerm.toLowerCase());
 
@@ -536,11 +516,11 @@ function collectStrings(val, out) {
 }
 
 function renderSemanticResults(container, matches, searchTerm, allObjects, fields, stats) {
-    let html = alert('success',
+    let html = alertBanner('success',
         `<i class="ti ti-brain"></i> Indexed <strong>${allObjects.length}</strong> objects across fields [${fields.map(f => `<code>${escHtml(f)}</code>`).join(', ')}] — found <strong>${matches.length}</strong> match(es) for "<strong>${escHtml(searchTerm)}</strong>"`
     );
 
-    html += `<div class="stats-grid">
+    html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(allObjects.length, 'Objects Indexed')}
         ${statCard(fields.length, 'Fields Indexed')}
         ${statCard(matches.length, 'Matches Found')}
@@ -548,56 +528,45 @@ function renderSemanticResults(container, matches, searchTerm, allObjects, field
     </div>`;
 
     if (matches.length === 0) {
-        html += alert('warning', `<i class="ti ti-alert-triangle"></i> No objects matched "<strong>${escHtml(searchTerm)}</strong>" in fields [${fields.join(', ')}]`);
+        html += alertBanner('warning', `<i class="ti ti-alert-triangle"></i> No objects matched "<strong>${escHtml(searchTerm)}</strong>" in fields [${fields.join(', ')}]`);
         container.innerHTML = html;
         return;
     }
 
-    html += `<div class="result-section"><h3><i class="ti ti-brain"></i> Matching Objects <span class="badge purple">${matches.length} results</span></h3>`;
+    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${matches.length} results</span></h3>`;
 
     matches.forEach(({ obj, matchedWords }, i) => {
-        const pretty = prettyJson(obj.jsonContent || '');
-        const highlighted = highlightTermInJson(pretty, searchTerm);
-
-        html += `<div class="semantic-match">
-            <div class="semantic-match-header">
-                <div>
-                    <span style="font-weight:600">Match #${i + 1}</span>
-                    <span class="badge" style="margin-left:8px"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
-                    <span class="badge orange" style="margin-left:4px">byte ${obj.startPosition.toLocaleString()}</span>
+        html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
+            <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
+                <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+                    <strong>Match #${i + 1}</strong>
+                    <span class="status-badge status-info"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
+                    <span class="status-badge status-warning">byte ${obj.startPosition.toLocaleString()}</span>
                 </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:4px">
                     ${matchedWords.slice(0, 5).map(w =>
-                        `<span class="badge purple"><i class="ti ti-tag"></i> ${escHtml(w)}</span>`
+                        `<span class="status-badge status-success"><i class="ti ti-tag"></i> ${escHtml(w)}</span>`
                     ).join('')}
                 </div>
             </div>
-            <div class="code-wrap">
-                <pre><code class="language-json">${highlighted}</code></pre>
-                <button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
+            <div style="position:relative">
+                <pre style="margin:0;border-radius:0;max-height:220px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
             </div>
         </div>`;
     });
 
-    html += `</div>`;
     container.innerHTML = html;
-    // Apply Prism highlighting first, then overlay search term highlights
-    highlightAll(container);
-    // After Prism runs, highlight the search term in the rendered text nodes
+
+    // Highlight search term in rendered text nodes
     if (searchTerm) {
-        container.querySelectorAll('.semantic-match .code-wrap pre code').forEach(block => {
+        container.querySelectorAll('pre code').forEach(block => {
             highlightTextInElement(block, searchTerm);
         });
     }
 }
 
-function highlightTermInJson(jsonText, term) {
-    // Just escape HTML — search term highlighting is applied post-Prism
-    return escHtml(jsonText);
-}
-
 function highlightTextInElement(element, term) {
-    // Walk text nodes and wrap matches in <mark>
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
     const nodes = [];
     let node;
@@ -609,7 +578,7 @@ function highlightTextInElement(element, term) {
         re.lastIndex = 0;
         const span = document.createElement('span');
         span.innerHTML = textNode.textContent.replace(re,
-            '<mark style="background:rgba(255,193,7,0.3);color:#FFD54F;border-radius:2px;padding:0 1px">$1</mark>');
+            '<mark style="background:var(--color-secondary);color:var(--text-primary);border-radius:2px;padding:0 1px">$1</mark>');
         textNode.parentNode.replaceChild(span, textNode);
     });
 }
@@ -657,36 +626,32 @@ function renderValidateResults(container, res, originalJson) {
     const bytes = res.bytesChecked ?? new TextEncoder().encode(originalJson).length;
 
     let html = allPass
-        ? alert('success', '<i class="ti ti-shield-check"></i> <strong>All checks passed</strong> — this JSON is valid and UTF-8 safe')
-        : alert('error',   '<i class="ti ti-shield-x"></i> <strong>Validation failed</strong> — see details below');
+        ? alertBanner('success', '<i class="ti ti-shield-check"></i> <strong>All checks passed</strong> — this JSON is valid and UTF-8 safe')
+        : alertBanner('error',   '<i class="ti ti-shield-x"></i> <strong>Validation failed</strong> — see details below');
 
-    html += `<div class="stats-grid">
+    html += `<div class="grid-2 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(fmtBytes(bytes), 'Bytes Checked')}
         ${statCard(allPass ? '✓ Valid' : '✗ Invalid', 'Overall')}
     </div>`;
 
-    html += `<div class="validation-result">
-        <div class="validation-check ${res.isValidStructure ? 'pass' : 'fail'}">
-            <div class="validation-icon ${res.isValidStructure ? 'pass' : 'fail'}">
-                <i class="ti ti-${res.isValidStructure ? 'check' : 'x'}"></i>
+    html += `<div class="grid-2 gap-sm">
+        <div class="card" style="border-left:3px solid ${res.isValidStructure ? 'var(--color-success)' : 'var(--color-danger)'}">
+            <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center;margin-bottom:var(--space-sm)">
+                <i class="ti ti-${res.isValidStructure ? 'check' : 'x'}" style="color:${res.isValidStructure ? 'var(--color-success)' : 'var(--color-danger)'}"></i>
+                <strong>JSON Structure</strong>
             </div>
-            <div>
-                <div class="validation-label">JSON Structure</div>
-                <div class="validation-detail">${res.isValidStructure
-                    ? 'Balanced braces, valid syntax, parseable by JsonDocument'
-                    : 'Invalid JSON — unbalanced braces, missing quotes, or syntax error'}</div>
-            </div>
+            <p class="text-secondary" style="font-size:var(--text-sm);margin:0">${res.isValidStructure
+                ? 'Balanced braces, valid syntax, parseable by JsonDocument'
+                : 'Invalid JSON — unbalanced braces, missing quotes, or syntax error'}</p>
         </div>
-        <div class="validation-check ${res.isValidUtf8 ? 'pass' : 'fail'}">
-            <div class="validation-icon ${res.isValidUtf8 ? 'pass' : 'fail'}">
-                <i class="ti ti-${res.isValidUtf8 ? 'check' : 'x'}"></i>
+        <div class="card" style="border-left:3px solid ${res.isValidUtf8 ? 'var(--color-success)' : 'var(--color-danger)'}">
+            <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center;margin-bottom:var(--space-sm)">
+                <i class="ti ti-${res.isValidUtf8 ? 'check' : 'x'}" style="color:${res.isValidUtf8 ? 'var(--color-success)' : 'var(--color-danger)'}"></i>
+                <strong>UTF-8 Delimiter Safety</strong>
             </div>
-            <div>
-                <div class="validation-label">UTF-8 Delimiter Safety</div>
-                <div class="validation-detail">${res.isValidUtf8
-                    ? 'No multi-byte sequences overlap JSON delimiters ({ } " \\)'
-                    : `Unsafe sequence: ${escHtml(res.utf8Error || 'multi-byte character overlaps a JSON delimiter')}`}</div>
-            </div>
+            <p class="text-secondary" style="font-size:var(--text-sm);margin:0">${res.isValidUtf8
+                ? 'No multi-byte sequences overlap JSON delimiters ({ } " \\)'
+                : `Unsafe sequence: ${escHtml(res.utf8Error || 'multi-byte character overlaps a JSON delimiter')}`}</p>
         </div>
     </div>`;
 
@@ -708,35 +673,35 @@ async function apiFetch(path, body) {
 function handleFileUpload(file, targetId) {
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
-        alert(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 5 MB.`);
+        showError(document.getElementById(targetId).closest('.section').querySelector('[id$="-results"]') || document.body,
+            `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 5 MB.`);
         return;
     }
     if (!file.name.endsWith('.json')) {
-        alert('Please upload a .json file');
         return;
     }
     const reader = new FileReader();
     reader.onload = e => $val(targetId, e.target.result);
-    reader.onerror = () => alert('Error reading file');
     reader.readAsText(file);
 }
 
 function showLoading(container, msg) {
-    container.innerHTML = `<div class="loading-message"><div class="spinner"></div>${escHtml(msg)}</div>`;
+    container.innerHTML = `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:10px;align-items:center;padding:var(--space-lg);color:var(--text-secondary)"><div class="spinner" style="width:18px;height:18px;border-width:2px"></div>${escHtml(msg)}</div>`;
 }
 
 function showError(container, msg) {
-    container.innerHTML = `<div class="alert error"><i class="ti ti-alert-circle"></i> ${msg}</div>`;
+    container.innerHTML = `<div class="alert alert-error"><i class="ti ti-alert-circle"></i> ${msg}</div>`;
 }
 
-function alert(type, html) {
-    return `<div class="alert ${type}">${html}</div>`;
+function alertBanner(type, html) {
+    const cls = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-error' : type === 'warning' ? 'alert-warning' : 'alert-info';
+    return `<div class="alert ${cls}">${html}</div>`;
 }
 
 function statCard(value, label) {
-    return `<div class="stat-card">
+    return `<div class="card" style="padding:var(--space-md)">
         <span class="stat-value">${value}</span>
-        <span class="stat-label">${label}</span>
+        <span class="text-muted" style="font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.05em">${label}</span>
     </div>`;
 }
 
@@ -787,18 +752,10 @@ function hide(el) {
     if (el) el.style.display = 'none';
 }
 
-function highlightAll(container) {
-    if (!window.Prism) return;
-    container.querySelectorAll('pre code').forEach(block => {
-        Prism.highlightElement(block);
-    });
-}
-
 function animateBars(container) {
-    // Trigger CSS transition on throughput bars
     requestAnimationFrame(() => {
-        container.querySelectorAll('.throughput-bar-fill').forEach(bar => {
-            const target = bar.style.width;
+        container.querySelectorAll('.throughput-fill').forEach(bar => {
+            const target = bar.dataset.target;
             bar.style.width = '0%';
             requestAnimationFrame(() => { bar.style.width = target; });
         });
@@ -806,21 +763,15 @@ function animateBars(container) {
 }
 
 function copyCode(btn) {
-    const pre = btn.closest('.code-wrap').querySelector('pre');
+    const pre = btn.closest('div').querySelector('pre');
     const text = pre.textContent || '';
     navigator.clipboard.writeText(text).then(() => {
-        btn.classList.add('copied');
         btn.innerHTML = '<i class="ti ti-check"></i> Copied!';
-        setTimeout(() => {
-            btn.classList.remove('copied');
-            btn.innerHTML = '<i class="ti ti-copy"></i> Copy';
-        }, 2000);
+        setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copy'; }, 2000);
     }).catch(() => {
-        // Fallback
         const ta = document.createElement('textarea');
         ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
+        ta.style.cssText = 'position:fixed;opacity:0';
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');

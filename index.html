@@ -7,401 +7,26 @@
     <meta name="description" content="Interactive demo of JsonUtilities: byte-range scanning, JSON path extraction, Trie indexing, semantic search, and validation.">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%232196F3' width='100' height='100' rx='12'/><text x='50' y='72' font-size='58' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'>{}</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230071CE' width='100' height='100' rx='4'/><text x='50' y='72' font-size='58' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'>{}</text></svg>">
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="https://styles.mikesendpoint.com/style.css">
+    <!-- Design System -->
+    <link rel="stylesheet" href="https://ui.mikesendpoint.com/active/style.css">
 
     <!-- Tabler Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-
-    <!-- Prism.js syntax highlighting -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
-
-    <style>
-        /* ── Demo-specific overrides ─────────────────────────────────────── */
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(33,150,243,0.12);
-            border: 1px solid rgba(33,150,243,0.3);
-            border-radius: 20px;
-            padding: 4px 12px;
-            font-size: 0.75rem;
-            color: var(--color-primary, #2196F3);
-            font-weight: 600;
-            letter-spacing: 0.03em;
-        }
-        .hero-badges {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-            margin-bottom: 4px;
-        }
-        .hero-badge.green  { background: rgba(76,175,80,0.12);  border-color: rgba(76,175,80,0.3);  color: #4CAF50; }
-        .hero-badge.yellow { background: rgba(255,193,7,0.12);  border-color: rgba(255,193,7,0.3);  color: #FFC107; }
-        .hero-badge.purple { background: rgba(156,39,176,0.12); border-color: rgba(156,39,176,0.3); color: #9C27B0; }
-
-        /* Stats grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 10px;
-            margin: 14px 0;
-        }
-        .stat-card {
-            background: var(--color-surface, #1e1e2e);
-            border: 1px solid var(--color-border, #333);
-            border-radius: 8px;
-            padding: 12px 14px;
-            font-size: 0.82rem;
-        }
-        .stat-card .stat-value {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--color-primary, #2196F3);
-            display: block;
-            line-height: 1.2;
-        }
-        .stat-card .stat-label {
-            color: var(--color-text-muted, #888);
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        /* Throughput bar */
-        .throughput-bar-wrap {
-            margin: 10px 0 4px;
-        }
-        .throughput-bar-label {
-            font-size: 0.75rem;
-            color: var(--color-text-muted, #888);
-            margin-bottom: 4px;
-        }
-        .throughput-bar-track {
-            height: 6px;
-            background: var(--color-border, #333);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        .throughput-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #2196F3, #00BCD4);
-            border-radius: 3px;
-            transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
-            width: 0%;
-        }
-
-        /* Result items */
-        .result-section { margin-top: 18px; }
-        .result-section h3 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .result-item {
-            background: var(--color-surface, #1e1e2e);
-            border: 1px solid var(--color-border, #333);
-            border-radius: 8px;
-            margin-bottom: 10px;
-            overflow: hidden;
-        }
-        .result-item-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: rgba(255,255,255,0.03);
-            border-bottom: 1px solid var(--color-border, #333);
-            font-size: 0.8rem;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-        .result-item-header .left { display: flex; align-items: center; gap: 8px; }
-        .result-item-header .right { display: flex; align-items: center; gap: 6px; }
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            background: rgba(33,150,243,0.15);
-            color: #64B5F6;
-            border-radius: 4px;
-            padding: 2px 7px;
-            font-size: 0.72rem;
-            font-family: monospace;
-            font-weight: 600;
-        }
-        .badge.green  { background: rgba(76,175,80,0.15);  color: #81C784; }
-        .badge.orange { background: rgba(255,152,0,0.15);  color: #FFB74D; }
-        .badge.purple { background: rgba(156,39,176,0.15); color: #CE93D8; }
-
-        /* Byte range visualizer */
-        .byte-range-viz {
-            padding: 8px 12px;
-            border-bottom: 1px solid var(--color-border, #333);
-            font-size: 0.72rem;
-            color: var(--color-text-muted, #888);
-        }
-        .byte-range-viz .range-bar {
-            height: 4px;
-            background: var(--color-border, #333);
-            border-radius: 2px;
-            margin-top: 4px;
-            position: relative;
-            overflow: hidden;
-        }
-        .byte-range-viz .range-fill {
-            position: absolute;
-            height: 100%;
-            background: linear-gradient(90deg, #FF9800, #F44336);
-            border-radius: 2px;
-            min-width: 3px;
-        }
-        .hash-line {
-            padding: 4px 12px 6px;
-            font-size: 0.7rem;
-            color: var(--color-text-muted, #888);
-            font-family: monospace;
-            border-bottom: 1px solid var(--color-border, #333);
-        }
-        .hash-line span { color: #CE93D8; }
-
-        /* Code block with copy button */
-        .code-wrap {
-            position: relative;
-        }
-        .code-wrap pre {
-            margin: 0 !important;
-            border-radius: 0 !important;
-            font-size: 0.78rem !important;
-            max-height: 220px;
-            overflow-y: auto;
-        }
-        .copy-btn {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 4px;
-            color: #aaa;
-            font-size: 0.7rem;
-            padding: 3px 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.15s;
-            z-index: 2;
-        }
-        .copy-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
-        .copy-btn.copied { color: #81C784; border-color: #81C784; }
-
-        /* Tag cloud */
-        .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; }
-        .tag {
-            background: rgba(33,150,243,0.15);
-            color: #64B5F6;
-            border: 1px solid rgba(33,150,243,0.25);
-            border-radius: 20px;
-            padding: 3px 10px;
-            font-size: 0.78rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .tag:hover { background: rgba(33,150,243,0.3); }
-
-        /* Validation result */
-        .validation-result {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 14px;
-        }
-        .validation-check {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            background: var(--color-surface, #1e1e2e);
-            border: 1px solid var(--color-border, #333);
-            border-radius: 8px;
-            padding: 12px 14px;
-        }
-        .validation-check.pass { border-color: rgba(76,175,80,0.4); }
-        .validation-check.fail { border-color: rgba(244,67,54,0.4); }
-        .validation-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
-        .validation-icon.pass { color: #81C784; }
-        .validation-icon.fail { color: #EF9A9A; }
-        .validation-label { font-size: 0.8rem; font-weight: 600; }
-        .validation-detail { font-size: 0.72rem; color: var(--color-text-muted, #888); margin-top: 2px; }
-
-        /* Semantic search */
-        .field-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-        .field-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: rgba(156,39,176,0.12);
-            border: 1px solid rgba(156,39,176,0.3);
-            border-radius: 4px;
-            padding: 3px 8px;
-            font-size: 0.75rem;
-            color: #CE93D8;
-            cursor: pointer;
-            transition: all 0.15s;
-            user-select: none;
-        }
-        .field-chip.active { background: rgba(156,39,176,0.3); border-color: #9C27B0; }
-        .field-chip:hover { background: rgba(156,39,176,0.25); }
-
-        .semantic-match {
-            background: var(--color-surface, #1e1e2e);
-            border: 1px solid var(--color-border, #333);
-            border-radius: 8px;
-            margin-bottom: 10px;
-            overflow: hidden;
-        }
-        .semantic-match-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: rgba(156,39,176,0.08);
-            border-bottom: 1px solid var(--color-border, #333);
-            font-size: 0.8rem;
-        }
-        .match-highlight {
-            background: rgba(255,193,7,0.25);
-            color: #FFD54F;
-            border-radius: 2px;
-            padding: 0 2px;
-            font-weight: 600;
-        }
-
-        /* Path suggestions */
-        .path-suggestions, .search-suggestions {
-            margin-top: 8px;
-            font-size: 0.78rem;
-            color: var(--color-text-muted, #888);
-        }
-        .btn-link {
-            background: none;
-            border: none;
-            color: var(--color-primary, #2196F3);
-            cursor: pointer;
-            font-size: 0.78rem;
-            padding: 2px 4px;
-            border-radius: 3px;
-            text-decoration: underline;
-            text-underline-offset: 2px;
-        }
-        .btn-link:hover { background: rgba(33,150,243,0.1); }
-
-        /* Live search indicator */
-        .live-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.72rem;
-            color: #81C784;
-        }
-        .live-dot {
-            width: 6px;
-            height: 6px;
-            background: #81C784;
-            border-radius: 50%;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
-        }
-
-        /* Loading spinner */
-        .loading-message {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 20px;
-            color: var(--color-text-muted, #888);
-            font-size: 0.85rem;
-        }
-        .spinner {
-            width: 18px;
-            height: 18px;
-            border: 2px solid var(--color-border, #333);
-            border-top-color: var(--color-primary, #2196F3);
-            border-radius: 50%;
-            animation: spin 0.7s linear infinite;
-            flex-shrink: 0;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Success / error / warning */
-        .alert {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            margin-bottom: 12px;
-        }
-        .alert.success { background: rgba(76,175,80,0.1);  border: 1px solid rgba(76,175,80,0.3);  color: #A5D6A7; }
-        .alert.error   { background: rgba(244,67,54,0.1);  border: 1px solid rgba(244,67,54,0.3);  color: #EF9A9A; }
-        .alert.warning { background: rgba(255,152,0,0.1);  border: 1px solid rgba(255,152,0,0.3);  color: #FFCC80; }
-        .alert i { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
-
-        /* About feature cards */
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-            margin-top: 16px;
-        }
-        .feature-card {
-            background: var(--color-surface, #1e1e2e);
-            border: 1px solid var(--color-border, #333);
-            border-radius: 10px;
-            padding: 16px;
-            transition: border-color 0.2s;
-        }
-        .feature-card:hover { border-color: var(--color-primary, #2196F3); }
-        .feature-card .fc-icon {
-            font-size: 1.6rem;
-            margin-bottom: 8px;
-            display: block;
-        }
-        .feature-card h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; }
-        .feature-card p  { font-size: 0.78rem; color: var(--color-text-muted, #888); line-height: 1.5; }
-
-        /* Responsive tweaks */
-        @media (max-width: 640px) {
-            .validation-result { grid-template-columns: 1fr; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>
+            <h1 style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;align-items:center;gap:10px;margin:0">
                 <i class="ti ti-braces"></i>
-                <span>Json<span style="color: var(--walmart-yellow, #FFC107);">Utilities</span></span>
+                <span>Json<span style="color:var(--color-secondary)">Utilities</span></span>
             </h1>
-            <div class="hero-badges">
-                <span class="hero-badge"><i class="ti ti-brand-github"></i> mist83/json-tools</span>
-                <span class="hero-badge green"><i class="ti ti-check"></i> 105 tests passing</span>
-                <span class="hero-badge yellow"><i class="ti ti-bolt"></i> .NET 8 · Zero-alloc</span>
-                <span class="hero-badge purple"><i class="ti ti-cpu"></i> Parallel · ArrayPool · Span&lt;T&gt;</span>
+            <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+                <span class="status-badge status-info"><i class="ti ti-brand-github"></i> mist83/json-tools</span>
+                <span class="status-badge status-enabled"><i class="ti ti-check"></i> 105 tests passing</span>
+                <span class="status-badge status-warning"><i class="ti ti-bolt"></i> .NET 8 · Zero-alloc</span>
             </div>
         </div>
 
@@ -438,51 +63,45 @@
             <!-- Sidebar -->
             <div class="sidebar">
                 <div class="sidebar-scroll">
-                    <div class="sidebar-section">
-                        <div class="sidebar-header">Quick Actions</div>
-                        <div class="sidebar-item" id="sidebar-load-example">
-                            <i class="ti ti-file-text"></i>
-                            <span>Load Example</span>
-                        </div>
-                        <div class="sidebar-item" id="sidebar-upload-file">
-                            <i class="ti ti-upload"></i>
-                            <span>Upload JSON File</span>
-                        </div>
-                        <div class="sidebar-item" id="sidebar-clear-all">
-                            <i class="ti ti-trash"></i>
-                            <span>Clear All</span>
-                        </div>
+                    <div class="sidebar-header">Quick Actions</div>
+                    <div class="sidebar-item" id="sidebar-load-example">
+                        <i class="ti ti-file-text"></i>
+                        <span>Load Example</span>
+                    </div>
+                    <div class="sidebar-item" id="sidebar-upload-file">
+                        <i class="ti ti-upload"></i>
+                        <span>Upload JSON File</span>
+                    </div>
+                    <div class="sidebar-item" id="sidebar-clear-all">
+                        <i class="ti ti-trash"></i>
+                        <span>Clear All</span>
                     </div>
 
-                    <div class="sidebar-section">
-                        <div class="sidebar-header">Resources</div>
-                        <div class="sidebar-item" id="sidebar-api-docs">
-                            <i class="ti ti-api"></i>
-                            <span>API Docs (Swagger)</span>
-                        </div>
-                        <div class="sidebar-item" id="sidebar-github">
-                            <i class="ti ti-brand-github"></i>
-                            <span>GitHub Repository</span>
-                        </div>
+                    <div class="sidebar-header">Resources</div>
+                    <div class="sidebar-item" id="sidebar-api-docs">
+                        <i class="ti ti-api"></i>
+                        <span>API Docs (Swagger)</span>
+                    </div>
+                    <div class="sidebar-item" id="sidebar-github">
+                        <i class="ti ti-brand-github"></i>
+                        <span>GitHub Repository</span>
                     </div>
 
-                    <div class="sidebar-section">
-                        <div class="sidebar-header">Features</div>
-                        <div class="sidebar-item" onclick="switchTab('byte-range')">
-                            <i class="ti ti-scan"></i><span>Byte-Range Scan</span>
-                        </div>
-                        <div class="sidebar-item" onclick="switchTab('path-extract')">
-                            <i class="ti ti-route"></i><span>Path Extraction</span>
-                        </div>
-                        <div class="sidebar-item" onclick="switchTab('trie-index')">
-                            <i class="ti ti-search"></i><span>Trie Index</span>
-                        </div>
-                        <div class="sidebar-item" onclick="switchTab('semantic')">
-                            <i class="ti ti-brain"></i><span>Semantic Search</span>
-                        </div>
-                        <div class="sidebar-item" onclick="switchTab('validate')">
-                            <i class="ti ti-shield-check"></i><span>Validate JSON</span>
-                        </div>
+                    <div class="sidebar-header">Features</div>
+                    <div class="sidebar-item" onclick="switchTab('byte-range')">
+                        <i class="ti ti-scan"></i><span>Byte-Range Scan</span>
+                    </div>
+                    <div class="sidebar-item" onclick="switchTab('path-extract')">
+                        <i class="ti ti-route"></i><span>Path Extraction</span>
+                    </div>
+                    <div class="sidebar-item" onclick="switchTab('trie-index')">
+                        <i class="ti ti-search"></i><span>Trie Index</span>
+                    </div>
+                    <div class="sidebar-item" onclick="switchTab('semantic')">
+                        <i class="ti ti-brain"></i><span>Semantic Search</span>
+                    </div>
+                    <div class="sidebar-item" onclick="switchTab('validate')">
+                        <i class="ti ti-shield-check"></i><span>Validate JSON</span>
                     </div>
                 </div>
             </div>
@@ -493,30 +112,24 @@
                 <!-- ── Byte-Range Scanning ──────────────────────────────── -->
                 <div class="section active" id="content-byte-range">
                     <h2><i class="ti ti-scan"></i> Byte-Range Scanning</h2>
-                    <p class="text-secondary" id="byte-range-description">Extract objects from JSON collections with precise byte positions and MD5 hashes — without full deserialization.</p>
+                    <p class="text-secondary">Extract objects from JSON collections with precise byte positions and MD5 hashes — without full deserialization.</p>
 
                     <div class="grid-2 gap-md">
                         <div>
-                            <label for="byte-range-json">JSON Input:</label>
-                            <textarea id="byte-range-json" rows="13" class="input" spellcheck="false" placeholder='{"products": [...], "reviews": [...]}'></textarea>
+                            <label>JSON Input:</label>
+                            <textarea id="byte-range-json" rows="13" spellcheck="false" placeholder='{"products": [...], "reviews": [...]}'></textarea>
                         </div>
                         <div>
-                            <label for="byte-range-collections">Target Collections <span style="color:var(--color-text-muted,#888);font-size:0.75rem">(comma-separated, blank = auto-detect)</span>:</label>
-                            <input type="text" id="byte-range-collections" class="input" placeholder="products, reviews, orders">
-                            <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="byte-range-hashes" checked>
-                                    Calculate MD5 hashes
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="byte-range-parallel">
-                                    Parallel processing
-                                </label>
+                            <label>Target Collections <span class="text-muted" style="font-size:var(--text-xs)">(comma-separated, blank = auto-detect)</span>:</label>
+                            <input type="text" id="byte-range-collections" placeholder="products, reviews, orders">
+                            <div style="margin-top:10px;display:grid;gap:6px">
+                                <label><input type="checkbox" id="byte-range-hashes" checked> Calculate MD5 hashes</label>
+                                <label><input type="checkbox" id="byte-range-parallel"> Parallel processing</label>
                             </div>
                         </div>
                     </div>
 
-                    <div class="button-group">
+                    <div class="grid-row gap-sm" style="margin-top:var(--space-md)">
                         <button id="btn-byte-range-example" class="btn-primary">
                             <i class="ti ti-file-text"></i> Load Example
                         </button>
@@ -535,21 +148,21 @@
                 <!-- ── JSON Path Extraction ────────────────────────────── -->
                 <div class="section" id="content-path-extract">
                     <h2><i class="ti ti-route"></i> JSON Path Extraction</h2>
-                    <p class="text-secondary" id="path-extract-description">Navigate nested JSON using dot-notation paths to extract specific arrays of objects.</p>
+                    <p class="text-secondary">Navigate nested JSON using dot-notation paths to extract specific arrays of objects.</p>
 
                     <div class="grid-2 gap-md">
                         <div>
-                            <label for="path-extract-json">JSON Input:</label>
-                            <textarea id="path-extract-json" rows="13" class="input" spellcheck="false" placeholder='{"company": {"departments": {"engineering": {"employees": [...]}}}}'></textarea>
+                            <label>JSON Input:</label>
+                            <textarea id="path-extract-json" rows="13" spellcheck="false" placeholder='{"company": {"departments": {"engineering": {"employees": [...]}}}}'></textarea>
                         </div>
                         <div>
-                            <label for="path-extract-path">JSON Path:</label>
-                            <input type="text" id="path-extract-path" class="input" placeholder="company.departments.engineering.employees">
-                            <div id="path-suggestions" class="path-suggestions"></div>
+                            <label>JSON Path:</label>
+                            <input type="text" id="path-extract-path" placeholder="company.departments.engineering.employees">
+                            <div id="path-suggestions" class="text-secondary" style="margin-top:6px;font-size:var(--text-sm)"></div>
                         </div>
                     </div>
 
-                    <div class="button-group">
+                    <div class="grid-row gap-sm" style="margin-top:var(--space-md)">
                         <button id="btn-path-example" class="btn-primary">
                             <i class="ti ti-file-text"></i> Load Example
                         </button>
@@ -568,26 +181,26 @@
                 <!-- ── Trie Indexing ───────────────────────────────────── -->
                 <div class="section" id="content-trie-index">
                     <h2><i class="ti ti-search"></i> Trie Indexing &amp; Live Search</h2>
-                    <p class="text-secondary" id="trie-index-description">Build a prefix-tree index from all JSON values, then search by prefix. Results update as you type.</p>
+                    <p class="text-secondary">Build a prefix-tree index from all JSON values, then search by prefix. Results update as you type.</p>
 
                     <div class="grid-2 gap-md">
                         <div>
-                            <label for="trie-index-json">JSON Input:</label>
-                            <textarea id="trie-index-json" rows="13" class="input" spellcheck="false"></textarea>
+                            <label>JSON Input:</label>
+                            <textarea id="trie-index-json" rows="13" spellcheck="false"></textarea>
                         </div>
                         <div>
-                            <label for="trie-search-term">
+                            <label>
                                 Search Term (prefix):
-                                <span class="live-indicator" id="trie-live-indicator" style="display:none">
-                                    <span class="live-dot"></span> live
+                                <span id="trie-live-indicator" class="text-success" style="display:none;font-size:var(--text-xs)">
+                                    <i class="ti ti-circle-filled pulse"></i> live
                                 </span>
                             </label>
-                            <input type="text" id="trie-search-term" class="input" placeholder="tech">
-                            <div id="search-suggestions" class="search-suggestions"></div>
+                            <input type="text" id="trie-search-term" placeholder="tech">
+                            <div id="search-suggestions" class="text-secondary" style="margin-top:6px;font-size:var(--text-sm)"></div>
                         </div>
                     </div>
 
-                    <div class="button-group">
+                    <div class="grid-row gap-sm" style="margin-top:var(--space-md)">
                         <button id="btn-trie-example" class="btn-primary">
                             <i class="ti ti-file-text"></i> Load Example
                         </button>
@@ -606,25 +219,25 @@
                 <!-- ── Semantic Search ────────────────────────────────── -->
                 <div class="section" id="content-semantic">
                     <h2><i class="ti ti-brain"></i> Semantic Search Index</h2>
-                    <p class="text-secondary" id="semantic-description">Build a keyword→byte-offset index from specific JSON fields. Search returns full matching objects — without loading the entire file into memory.</p>
+                    <p class="text-secondary">Build a keyword→byte-offset index from specific JSON fields. Search returns full matching objects — without loading the entire file into memory.</p>
 
                     <div class="grid-2 gap-md">
                         <div>
-                            <label for="semantic-json">JSON Input:</label>
-                            <textarea id="semantic-json" rows="13" class="input" spellcheck="false"></textarea>
+                            <label>JSON Input:</label>
+                            <textarea id="semantic-json" rows="13" spellcheck="false"></textarea>
                         </div>
                         <div>
-                            <label>Index These Fields <span style="color:var(--color-text-muted,#888);font-size:0.75rem">(click to toggle)</span>:</label>
-                            <div class="field-chips" id="semantic-field-chips"></div>
+                            <label>Index These Fields <span class="text-muted" style="font-size:var(--text-xs)">(click to toggle)</span>:</label>
+                            <div id="semantic-field-chips" style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;margin-top:6px"></div>
 
-                            <label for="semantic-search-term" style="margin-top:14px;display:block">Search Term (prefix):</label>
-                            <input type="text" id="semantic-search-term" class="input" placeholder="hanks">
+                            <label style="margin-top:14px;display:block">Search Term (prefix):</label>
+                            <input type="text" id="semantic-search-term" placeholder="hanks">
 
-                            <div id="semantic-term-suggestions" class="search-suggestions" style="margin-top:6px"></div>
+                            <div id="semantic-term-suggestions" class="text-secondary" style="margin-top:6px;font-size:var(--text-sm)"></div>
                         </div>
                     </div>
 
-                    <div class="button-group">
+                    <div class="grid-row gap-sm" style="margin-top:var(--space-md)">
                         <button id="btn-semantic-example" class="btn-primary">
                             <i class="ti ti-file-text"></i> Load Example
                         </button>
@@ -646,15 +259,15 @@
                     <p class="text-secondary">Validate JSON structure and UTF-8 delimiter safety. Checks for balanced braces, valid syntax, and multi-byte character safety.</p>
 
                     <div>
-                        <label for="validate-json">JSON Input:</label>
-                        <textarea id="validate-json" rows="14" class="input" spellcheck="false" placeholder="Paste any JSON here..."></textarea>
+                        <label>JSON Input:</label>
+                        <textarea id="validate-json" rows="14" spellcheck="false" placeholder="Paste any JSON here..."></textarea>
                     </div>
 
-                    <div class="button-group">
+                    <div class="grid-row gap-sm" style="margin-top:var(--space-md)">
                         <button id="btn-validate-valid-example" class="btn-primary">
                             <i class="ti ti-check"></i> Load Valid Example
                         </button>
-                        <button id="btn-validate-invalid-example" class="btn-secondary" style="border-color:rgba(244,67,54,0.4);color:#EF9A9A">
+                        <button id="btn-validate-invalid-example" class="btn-danger">
                             <i class="ti ti-x"></i> Load Invalid Example
                         </button>
                         <button id="btn-validate-run" class="btn-secondary">
@@ -674,43 +287,36 @@
                     <h2>About JsonUtilities</h2>
                     <p class="text-secondary">A high-performance .NET 8 library for scanning large JSON files without full deserialization. Uses byte-range tracking, dot-notation path extraction, prefix-tree indexing, and semantic keyword search.</p>
 
-                    <div class="feature-grid">
-                        <div class="feature-card">
-                            <span class="fc-icon"><i class="ti ti-scan" style="color:#2196F3"></i></span>
-                            <h3>Byte-Range Scanning</h3>
-                            <p>Extract objects with precise byte positions using <code>ArrayPool</code> buffers and zero-copy <code>Span&lt;T&gt;</code> slicing. Parallel processing via <code>Channel&lt;T&gt;</code>.</p>
+                    <div class="grid-3 gap-md">
+                        <div class="card">
+                            <div class="card-title"><i class="ti ti-scan"></i> Byte-Range Scanning</div>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Extract objects with precise byte positions using <code>ArrayPool</code> buffers and zero-copy <code>Span&lt;T&gt;</code> slicing. Parallel processing via <code>Channel&lt;T&gt;</code>.</p>
                         </div>
-                        <div class="feature-card">
-                            <span class="fc-icon"><i class="ti ti-route" style="color:#4CAF50"></i></span>
-                            <h3>Path Extraction</h3>
-                            <p>Navigate deeply nested JSON using dot-notation paths like <code>company.departments.engineering.employees</code>. Case-insensitive by default.</p>
+                        <div class="card">
+                            <div class="card-title"><i class="ti ti-route"></i> Path Extraction</div>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Navigate deeply nested JSON using dot-notation paths like <code>company.departments.engineering.employees</code>. Case-insensitive by default.</p>
                         </div>
-                        <div class="feature-card">
-                            <span class="fc-icon"><i class="ti ti-search" style="color:#FF9800"></i></span>
-                            <h3>Trie Indexing</h3>
-                            <p>Generic prefix-tree with O(prefix_length) search. Supports unicode, duplicates, exact-match, and batch construction via <code>TrieBuilder&lt;T&gt;</code>.</p>
+                        <div class="card">
+                            <div class="card-title"><i class="ti ti-search"></i> Trie Indexing</div>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Generic prefix-tree with O(prefix_length) search. Supports unicode, duplicates, exact-match, and batch construction via <code>TrieBuilder&lt;T&gt;</code>.</p>
                         </div>
-                        <div class="feature-card">
-                            <span class="fc-icon"><i class="ti ti-brain" style="color:#9C27B0"></i></span>
-                            <h3>Semantic Search</h3>
-                            <p>Index specific fields (title, cast, description) by keyword → byte offset. Search a 500 MB catalog in milliseconds. N-gram phrase search supported.</p>
+                        <div class="card">
+                            <div class="card-title"><i class="ti ti-brain"></i> Semantic Search</div>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Index specific fields (title, cast, description) by keyword → byte offset. Search a 500 MB catalog in milliseconds. N-gram phrase search supported.</p>
                         </div>
-                        <div class="feature-card">
-                            <span class="fc-icon"><i class="ti ti-shield-check" style="color:#00BCD4"></i></span>
-                            <h3>UTF-8 Validation</h3>
-                            <p>Validates delimiter safety for multi-byte UTF-8 sequences. Ensures <code>{</code>, <code>}</code>, <code>"</code>, <code>\</code> bytes are never part of a multi-byte character.</p>
+                        <div class="card">
+                            <div class="card-title"><i class="ti ti-shield-check"></i> UTF-8 Validation</div>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Validates delimiter safety for multi-byte UTF-8 sequences. Ensures <code>{</code>, <code>}</code>, <code>"</code>, <code>\</code> bytes are never part of a multi-byte character.</p>
                         </div>
-                        <div class="feature-card">
-                            <span class="fc-icon"><i class="ti ti-code" style="color:#FFC107"></i></span>
-                            <h3>Fluent API</h3>
-                            <p>Chainable builder: <code>JsonTools.Scan(stream).ForCollections("products").WithHashes().WithContent().RunAsync()</code></p>
+                        <div class="card">
+                            <div class="card-title"><i class="ti ti-code"></i> Fluent API</div>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Chainable builder: <code>JsonTools.Scan(stream).ForCollections("products").WithHashes().WithContent().RunAsync()</code></p>
                         </div>
                     </div>
 
-                    <div class="content-card" style="margin-top:20px">
+                    <div class="content-card" style="margin-top:var(--space-md)">
                         <h3><i class="ti ti-terminal"></i> Quick Start</h3>
-                        <div class="code-wrap">
-                            <pre><code class="language-csharp">// Byte-range scan
+                        <pre><code>// Byte-range scan
 var result = await JsonTools.Scan(stream)
     .ForCollections("products", "reviews")
     .WithHashes()
@@ -728,17 +334,15 @@ var index = await JsonTools.BuildSemanticIndex(filePath, new SemanticIndexOption
     IndexNGrams = true
 });
 var matches = index.SearchObjects("hanks", filePath);</code></pre>
-                            <button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
-                        </div>
                     </div>
 
-                    <div class="content-card" style="margin-top:12px">
+                    <div class="content-card">
                         <h3><i class="ti ti-test-pipe"></i> Test Suite</h3>
-                        <p style="font-size:0.82rem;color:var(--color-text-muted,#888)">105 xUnit tests across 7 test classes — all passing. Covers byte accuracy, hashing, edge cases, unicode, parallel processing, semantic indexing, and ETL pipeline integration scenarios.</p>
-                        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-                            <span class="badge green"><i class="ti ti-check"></i> 105 passing</span>
-                            <span class="badge"><i class="ti ti-x"></i> 0 failing</span>
-                            <span class="badge orange"><i class="ti ti-clock"></i> ~33ms</span>
+                        <p class="text-secondary" style="font-size:var(--text-sm)">105 xUnit tests across 7 test classes — all passing. Covers byte accuracy, hashing, edge cases, unicode, parallel processing, semantic indexing, and ETL pipeline integration scenarios.</p>
+                        <div style="margin-top:var(--space-sm);display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px">
+                            <span class="status-badge status-enabled"><i class="ti ti-check"></i> 105 passing</span>
+                            <span class="status-badge status-info"><i class="ti ti-x"></i> 0 failing</span>
+                            <span class="status-badge status-warning"><i class="ti ti-clock"></i> ~33ms</span>
                         </div>
                     </div>
                 </div>
@@ -746,11 +350,6 @@ var matches = index.SearchObjects("hanks", filePath);</code></pre>
             </div><!-- /content -->
         </div><!-- /layout -->
     </div><!-- /container -->
-
-    <!-- Prism.js -->
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-csharp.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
 
     <!-- Sample data + app logic -->
     <script src="sample-data.js"></script>
