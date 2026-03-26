@@ -240,6 +240,18 @@ const DataGenerator = (() => {
         return { departments, employees };
     }
 
+    // ── Register built-in types with PluginRegistry ───────────────────────────
+    // Called after PluginRegistry is loaded (script order: plugin-registry.js first)
+
+    function registerBuiltins() {
+        if (typeof PluginRegistry === 'undefined') return; // safety guard
+        const reg = PluginRegistry.DataGenerator;
+        reg.register('ecommerce', (count) => { _seed = Date.now(); return generateEcommerce(count); });
+        reg.register('movies',    (count) => { _seed = Date.now(); return generateMovies(count); });
+        reg.register('blog',      (count) => { _seed = Date.now(); return generateBlog(count); });
+        reg.register('employees', (count) => { _seed = Date.now(); return generateEmployees(count); });
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     return {
@@ -253,6 +265,17 @@ const DataGenerator = (() => {
                 default:          return generateEcommerce(count);
             }
         },
+
+        /** Register a custom generator type. fn(count) => object */
+        register(type, fn) {
+            if (typeof PluginRegistry !== 'undefined') {
+                PluginRegistry.DataGenerator.register(type, (count) => { _seed = Date.now(); return fn(count); });
+            }
+            return this;
+        },
+
+        /** Initialize — call after PluginRegistry is available */
+        init() { registerBuiltins(); return this; },
 
         // Suggested search terms per type
         searchTerms(type) {
