@@ -19,20 +19,28 @@ High-performance C# library for scanning large JSON files with byte-position tra
 | **MD5 Hashing** | Stackalloc-based `MD5.HashData` — no intermediate allocations. |
 | **UTF-8 Validation** | Validates delimiter safety for multi-byte UTF-8 sequences. |
 | **Fluent API** | Discoverable, chainable builder API via `JsonTools`. |
+| **Browser Preview** | Privacy-first, zero-network preview mode in the demo UI. Keeps JSON in the tab while mirroring the API contract for curious users. |
 
 ## 🚀 Live Demo
 
 **Frontend:** https://json-tools.mikesendpoint.com  
 **API (Swagger):** https://tf4qymuc4kepzxytuk3dinfjbq0lwyyw.lambda-url.us-west-2.on.aws
 
+### Demo Execution Modes
+
+- **Hosted API** — the public site talks to the deployed .NET API
+- **Local API** — `dotnet run` serves the UI and API together on localhost
+- **Browser Preview** — keeps JSON in the browser tab for privacy-sensitive experimentation
+
 ## 📦 Quick Start
 
 ```bash
-# Clone and run the demo API locally
+# Clone and run the full demo locally
 git clone https://github.com/mist83/json-tools.git
-cd json-tools/src/JsonUtilitiesDemo
-dotnet run
-# Swagger UI at http://localhost:5000
+cd json-tools
+dotnet run --project src/JsonUtilitiesDemo/JsonUtilitiesDemo.csproj --urls http://localhost:5968
+# Demo UI at http://localhost:5968
+# Swagger UI at http://localhost:5968/swagger
 ```
 
 ## 🔧 Usage
@@ -89,6 +97,8 @@ foreach (var json in index.SearchObjects("hanks", filePath))
     Console.WriteLine(json);
 ```
 
+The demo UI now exposes the same pipeline through `POST /api/semantic/search`, so the semantic-search tab can use the real C# index in Hosted API and Local API modes.
+
 ### Direct Scanner Access
 
 ```csharp
@@ -134,6 +144,7 @@ src/
       ScanController          # POST /api/scan/byte-range, /api/scan/validate
       PathScanController      # POST /api/pathscan/extract
       TrieController          # POST /api/trie/index
+      SemanticController      # POST /api/semantic/search
 
 tests/
   JsonUtilities.Tests/        # 105 xUnit tests
@@ -154,6 +165,18 @@ tests/
 | POST | `/api/scan/validate` | Validate JSON structure + UTF-8 safety |
 | POST | `/api/pathscan/extract` | Extract objects at dot-notation path |
 | POST | `/api/trie/index` | Build trie index + prefix search |
+| POST | `/api/semantic/search` | Build semantic index from selected fields, then search for matching objects |
+| GET | `/api/health` | Simple health probe for localhost and hosted checks |
+
+## 🧭 WASM Direction
+
+If you want a future “no upload, no install, still real C#” story, WebAssembly is a good fit for the core library but not for pretending the browser is a real socket-listening web server. The cleaner path is:
+
+- keep the request/response contract stable
+- reuse `JsonUtilities` directly from a browser host
+- swap HTTP for an in-process adapter when running in WebAssembly
+
+Today’s Browser Preview mode is the low-friction bridge: users can keep data local now, while the UI and API contract stay aligned with a later C# WebAssembly implementation.
 
 ## ⚡ Performance
 
@@ -183,3 +206,4 @@ dotnet test --collect:"XPlat Code Coverage"
 - .NET 8.0+
 - No external runtime dependencies (core library)
 - Demo API: `Amazon.Lambda.AspNetCoreServer.Hosting`, `Swashbuckle.AspNetCore`
+- Demo UI: plain HTML/CSS/JS served by the ASP.NET Core demo locally or by static hosting in production

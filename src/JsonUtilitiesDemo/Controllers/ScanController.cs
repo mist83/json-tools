@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using JsonUtilities;
 using JsonUtilities.Models;
 using JsonUtilitiesDemo.Models;
+using JsonUtilitiesDemo.Support;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -41,9 +42,11 @@ public class ScanController : ControllerBase
 
             var options = new JsonScanOptions
             {
-                TargetCollections = request.TargetCollections.Length > 0 ? request.TargetCollections : null,
+                TargetCollections = JsonRequestHelpers.ResolveCollectionTargets(request.JsonContent, request.TargetCollections),
                 CalculateHashes = request.CalculateHashes,
-                IncludeJsonContent = true
+                IncludeJsonContent = request.IncludeJsonContent,
+                ParallelProcessing = request.ParallelProcessing,
+                ValidateUtf8 = false
             };
 
             var scanner = new GenericByteRangeScanner();

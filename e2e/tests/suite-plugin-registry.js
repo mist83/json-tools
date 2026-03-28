@@ -191,10 +191,12 @@ module.exports = {
 
         // ── ApiTransport ─────────────────────────────────────────────────────
         {
-            name: 'ApiTransport: lambda transport is registered and active',
+            name: 'ApiTransport: default transport is registered and execution-mode aware',
             async fn(page) {
                 const active = await page.evaluate(() => PluginRegistry.ApiTransport.getActive());
-                if (active !== 'lambda') throw new Error(`Expected lambda transport active, got ${active}`);
+                if (!['auto', 'lambda', 'localhost', 'browser'].includes(active)) {
+                    throw new Error(`Expected a known default transport, got ${active}`);
+                }
             }
         },
         {
@@ -208,9 +210,10 @@ module.exports = {
             name: 'ApiTransport: mock transport returns valid byte-range response',
             async fn(page) {
                 const result = await page.evaluate(async () => {
+                    const previous = PluginRegistry.ApiTransport.getActive();
                     PluginRegistry.ApiTransport.setActive('mock');
                     const res = await PluginRegistry.ApiTransport.fetch('/api/scan/byte-range', { jsonContent: '{}' });
-                    PluginRegistry.ApiTransport.setActive('lambda');
+                    PluginRegistry.ApiTransport.setActive(previous);
                     return res;
                 });
                 if (!result.success) throw new Error('Mock transport should return success:true');
@@ -221,9 +224,10 @@ module.exports = {
             name: 'ApiTransport: mock transport returns valid validate response',
             async fn(page) {
                 const result = await page.evaluate(async () => {
+                    const previous = PluginRegistry.ApiTransport.getActive();
                     PluginRegistry.ApiTransport.setActive('mock');
                     const res = await PluginRegistry.ApiTransport.fetch('/api/scan/validate', { jsonContent: '{}' });
-                    PluginRegistry.ApiTransport.setActive('lambda');
+                    PluginRegistry.ApiTransport.setActive(previous);
                     return res;
                 });
                 if (!result.isValidStructure) throw new Error('Mock validate should return isValidStructure:true');
@@ -234,6 +238,7 @@ module.exports = {
             name: 'ApiTransport: register() adds custom transport',
             async fn(page) {
                 const result = await page.evaluate(async () => {
+                    const previous = PluginRegistry.ApiTransport.getActive();
                     PluginRegistry.ApiTransport.register('test-transport', async (path, body) => ({
                         success: true,
                         _transport: 'test',
@@ -241,7 +246,7 @@ module.exports = {
                     }));
                     PluginRegistry.ApiTransport.setActive('test-transport');
                     const res = await PluginRegistry.ApiTransport.fetch('/test', {});
-                    PluginRegistry.ApiTransport.setActive('lambda');
+                    PluginRegistry.ApiTransport.setActive(previous);
                     return res;
                 });
                 if (result._transport !== 'test') throw new Error('Custom transport should be called');
@@ -259,7 +264,9 @@ module.exports = {
                 if (!summary.DataGenerator) throw new Error('summary missing DataGenerator');
                 if (!summary.ApiTransport) throw new Error('summary missing ApiTransport');
                 if (summary.MatchEngine.active !== 'prefix') throw new Error('MatchEngine active should be prefix');
-                if (summary.ApiTransport.active !== 'lambda') throw new Error('ApiTransport active should be lambda');
+                if (!['auto', 'lambda', 'localhost', 'browser'].includes(summary.ApiTransport.active)) {
+                    throw new Error(`ApiTransport active should be a known execution mode, got ${summary.ApiTransport.active}`);
+                }
             }
         },
     ]

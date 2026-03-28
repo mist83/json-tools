@@ -12,6 +12,11 @@
     <Description>Lightweight library for JSON processing, scanning, validation, and indexing. Provides byte-range scanning, JSON path extraction, Trie indexing, and stream-based processing utilities.</Description>
     <Authors>Mike Ullman</Authors>
     <Company>JsonUtilities Contributors</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/mist83/json-tools</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mist83/json-tools</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>json;scanner;etl;trie;semantic-search</PackageTags>
     <Optimize>true</Optimize>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>

@@ -5,6 +5,9 @@
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const LS_KEY = 'jsontools_active_data';
+const LS_EXECUTION_MODE_KEY = 'jsontools_execution_mode';
+const UTF8_ENCODER = new TextEncoder();
+const UTF8_DECODER = new TextDecoder();
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -13,6 +16,7 @@ let _generatedJson = null;       // last generated JSON string (for download)
 let _trieDebounce = null;
 let _trieIndexed = false;
 let _semanticFields = new Set();
+let _executionMode = 'auto';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -22,7 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initHome();
     initTrieLiveSearch();
+    loadExecutionMode();
     loadDatasetFromStorage();
+    refreshExecutionModeUI();
     refreshHomeStatus();
     refreshSidebarLabel();
     // Start with sidebar hidden (Home tab is active)
@@ -64,6 +70,82 @@ function switchTool(name) {
     // Populate field chips when switching to semantic
     if (name === 'semantic' && _activeDataset) {
         renderSemanticFieldChips();
+    }
+}
+
+// ── Execution Mode ────────────────────────────────────────────────────────────
+
+function loadExecutionMode() {
+    try {
+        const stored = localStorage.getItem(LS_EXECUTION_MODE_KEY);
+        if (stored) _executionMode = stored;
+    } catch (e) { /* ignore */ }
+    if (!['auto', 'localhost', 'browser', 'lambda'].includes(_executionMode)) {
+        _executionMode = 'auto';
+    }
+    PluginRegistry.ApiTransport.setActive(_executionMode);
+}
+
+function setExecutionMode(mode) {
+    _executionMode = mode;
+    PluginRegistry.ApiTransport.setActive(mode);
+    try {
+        localStorage.setItem(LS_EXECUTION_MODE_KEY, mode);
+    } catch (e) { /* ignore */ }
+    refreshExecutionModeUI();
+}
+
+function refreshExecutionModeUI() {
+    const select = document.getElementById('execution-mode');
+    if (select) select.value = _executionMode;
+
+    const status = document.getElementById('execution-mode-status');
+    const badge = document.getElementById('execution-mode-badge');
+    const info = getExecutionModeInfo();
+
+    if (status) {
+        status.innerHTML = `${info.description}<div style="margin-top:6px">${info.hint}</div>`;
+    }
+    if (badge) {
+        badge.className = `status-badge ${info.badgeClass}`;
+        badge.innerHTML = `<i class="${info.icon}"></i> ${escHtml(info.badgeLabel)}`;
+    }
+}
+
+function getExecutionModeInfo() {
+    switch (_executionMode) {
+        case 'localhost':
+            return {
+                badgeLabel: 'Local API',
+                badgeClass: 'status-warning',
+                icon: 'ti ti-plug-connected',
+                description: '<strong>Local API mode.</strong> The UI sends requests to <code>http://localhost:5968</code> so you can test the real .NET pipeline without deploying anything.',
+                hint: 'Run <code>dotnet run --project src/JsonUtilitiesDemo/JsonUtilitiesDemo.csproj --urls http://localhost:5968</code>.'
+            };
+        case 'browser':
+            return {
+                badgeLabel: 'Browser Preview',
+                badgeClass: 'status-enabled',
+                icon: 'ti ti-lock',
+                description: '<strong>Browser Preview mode.</strong> Data stays in this tab and no API calls are made. Great for sensitive JSON and fast curiosity-driven exploration.',
+                hint: 'This mirrors the API contract in JavaScript. For exact C# hashing and server behavior, switch to Local API or Hosted API.'
+            };
+        case 'lambda':
+            return {
+                badgeLabel: 'Hosted API',
+                badgeClass: 'status-info',
+                icon: 'ti ti-cloud',
+                description: '<strong>Hosted API mode.</strong> Requests go to the public demo backend, which runs the real .NET implementation.',
+                hint: 'Use this when you want to compare local behavior with the published demo.'
+            };
+        default:
+            return {
+                badgeLabel: 'Auto mode',
+                badgeClass: 'status-info',
+                icon: 'ti ti-switch-3',
+                description: '<strong>Auto mode.</strong> Localhost stays local and the public site stays hosted, so the safest default usually just works.',
+                hint: 'On <code>localhost:5968</code> the UI uses the same origin. On other localhost ports it targets <code>http://localhost:5968</code>.'
+            };
     }
 }
 
@@ -300,10 +382,12 @@ async function runByteRange() {
 function renderByteRangeResults(container, result, originalJson) {
     const { collections, stats } = result;
     const totalBytes = new TextEncoder().encode(originalJson).length;
-    const throughputMBs = (totalBytes / 1024 / 1024) / (stats.processingTimeMs / 1000);
+    const throughputMBs = (totalBytes / 1024 / 1024) / (Math.max(stats.processingTimeMs, 0.1) / 1000);
     const barPct = Math.min(100, throughputMBs * 10);
 
     let html = alertBanner('success', `<i class="ti ti-check"></i> Scan complete — ${stats.totalObjectsFound} objects in ${stats.collectionsScanned} collection(s)`);
+    html += renderExecutionSummary();
+    html += renderWarnings(result);
 
     html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(stats.collectionsScanned, 'Collections')}
@@ -398,6 +482,8 @@ function renderPathResults(container, result, jsonPath, originalJson) {
     const totalBytes = new TextEncoder().encode(originalJson).length;
 
     let html = alertBanner('success', `<i class="ti ti-check"></i> Found <strong>${objects.length}</strong> object(s) at <code>${escHtml(jsonPath)}</code>`);
+    html += renderExecutionSummary();
+    html += renderWarnings(result);
 
     html += `<div class="grid-3 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(objects.length, 'Objects Found')}
@@ -484,6 +570,8 @@ function renderTrieResults(container, result, searchTerm) {
     const { matches, totalIndexed } = result;
 
     let html = alertBanner('success', `<i class="ti ti-check"></i> Index built — <strong>${totalIndexed.toLocaleString()}</strong> terms indexed`);
+    html += renderExecutionSummary();
+    html += renderWarnings(result);
 
     html += `<div class="grid-3 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(totalIndexed.toLocaleString(), 'Terms Indexed')}
@@ -545,45 +633,33 @@ async function runSemanticSearch() {
     showLoading(resultsDiv, `Building semantic index on [${fields.join(', ')}] and searching for "${searchTerm}"…`);
 
     try {
-        let detectedCollections = [];
-        try {
-            const parsed = JSON.parse(_activeDataset.json);
-            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                detectedCollections = Object.entries(parsed).filter(([, v]) => Array.isArray(v)).map(([k]) => k);
-            }
-        } catch { /* fall through */ }
-
-        const scanRes = await apiFetch('/api/scan/byte-range', {
+        const semanticRes = await apiFetch('/api/semantic/search', {
             jsonContent: _activeDataset.json,
-            targetCollections: detectedCollections.length > 0 ? detectedCollections : null,
-            calculateHashes: false,
-            validateUtf8: false,
-            includeJsonContent: true
+            indexedFields: fields,
+            collectionPaths: detectCollectionsFromJson(_activeDataset.json),
+            searchTerm,
+            indexNGrams: true,
+            maxResults: 10
         });
 
-        if (!scanRes.success) { showError(resultsDiv, scanRes.error || 'Scan failed'); return; }
+        if (!semanticRes.success) { showError(resultsDiv, semanticRes.error || 'Semantic search failed'); return; }
 
-        const allObjects = Object.values(scanRes.collections).flat();
-        const matches = buildClientSemanticIndex(allObjects, fields, searchTerm.toLowerCase());
-
-        renderSemanticResults(resultsDiv, matches, searchTerm, allObjects, fields, scanRes.stats);
+        renderSemanticResults(resultsDiv, semanticRes, searchTerm, fields);
     } catch (err) {
         showError(resultsDiv, `Error: ${err.message}`);
     }
 }
 
-function buildClientSemanticIndex(objects, fields, prefix) {
-    const matches = [];
-    objects.forEach((obj, idx) => {
-        if (!obj.jsonContent) return;
-        let parsed;
-        try { parsed = JSON.parse(obj.jsonContent); } catch { return; }
+function findMatchedWordsForObject(obj, fields, searchTerm) {
+    if (!obj.jsonContent) return [];
+
+    try {
+        const parsed = JSON.parse(obj.jsonContent);
         const words = extractWords(parsed, fields);
-        // Use pluggable MatchEngine for matching
-        const matchedWords = words.filter(w => PluginRegistry.MatchEngine.match(w, prefix));
-        if (matchedWords.length > 0) matches.push({ obj, matchedWords: [...new Set(matchedWords)], idx });
-    });
-    return matches;
+        return [...new Set(words.filter(word => PluginRegistry.MatchEngine.match(word, searchTerm)))];
+    } catch {
+        return [];
+    }
 }
 
 function extractWords(obj, fields) {
@@ -608,26 +684,32 @@ function collectStrings(val, out) {
     }
 }
 
-function renderSemanticResults(container, matches, searchTerm, allObjects, fields, stats) {
+function renderSemanticResults(container, result, searchTerm, fields) {
+    const objects = result.objects || [];
+    const stats = result.stats || {};
+    const matches = objects.map(obj => ({ obj, matchedWords: findMatchedWordsForObject(obj, fields, searchTerm) }));
+
     let html = alertBanner('success',
-        `<i class="ti ti-brain"></i> Indexed <strong>${allObjects.length}</strong> objects across [${fields.map(f => `<code>${escHtml(f)}</code>`).join(', ')}] — found <strong>${matches.length}</strong> match(es) for "<strong>${escHtml(searchTerm)}</strong>"`
+        `<i class="ti ti-brain"></i> Indexed <strong>${(stats.objectsIndexed ?? objects.length).toLocaleString()}</strong> objects across [${fields.map(f => `<code>${escHtml(f)}</code>`).join(', ')}] — found <strong>${(stats.matchesFound ?? matches.length).toLocaleString()}</strong> match(es) for "<strong>${escHtml(searchTerm)}</strong>"`
     );
+    html += renderExecutionSummary();
+    html += renderWarnings(result);
 
     html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
-        ${statCard(allObjects.length, 'Objects Indexed')}
+        ${statCard((stats.objectsIndexed ?? objects.length).toLocaleString(), 'Objects Indexed')}
         ${statCard(fields.length, 'Fields Indexed')}
-        ${statCard(matches.length, 'Matches Found')}
+        ${statCard((stats.matchesFound ?? matches.length).toLocaleString(), 'Matches Found')}
         ${statCard(fmtBytes(stats.bytesProcessed), 'Bytes Scanned')}
     </div>`;
 
-    if (matches.length === 0) {
+    if ((stats.matchesFound ?? matches.length) === 0) {
         html += alertBanner('warning', `<i class="ti ti-alert-triangle"></i> No objects matched "<strong>${escHtml(searchTerm)}</strong>" in fields [${fields.join(', ')}]`);
         container.innerHTML = html;
         return;
     }
 
     const preview = matches.slice(0, 10);
-    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${matches.length} results</span>${matches.length > 10 ? ` <span class="text-muted" style="font-size:var(--text-sm);font-weight:normal">— showing first 10</span>` : ''}</h3>`;
+    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${(stats.matchesFound ?? matches.length).toLocaleString()} results</span>${(stats.matchesFound ?? matches.length) > 10 ? ` <span class="text-muted" style="font-size:var(--text-sm);font-weight:normal">— showing first 10</span>` : ''}</h3>`;
 
     preview.forEach(({ obj, matchedWords }, i) => {
         html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
@@ -698,6 +780,8 @@ function renderValidateResults(container, res, originalJson) {
     let html = allPass
         ? alertBanner('success', '<i class="ti ti-shield-check"></i> <strong>All checks passed</strong> — this JSON is valid and UTF-8 safe')
         : alertBanner('error',   '<i class="ti ti-shield-x"></i> <strong>Validation failed</strong> — see details below');
+    html += renderExecutionSummary();
+    html += renderWarnings(res);
 
     html += `<div class="grid-2 gap-sm" style="margin:var(--space-md) 0">
         ${statCard(fmtBytes(bytes), 'Bytes Checked')}
@@ -735,12 +819,26 @@ async function apiFetch(path, body) {
     return PluginRegistry.ApiTransport.fetch(path, body);
 }
 
+function renderExecutionSummary() {
+    const info = getExecutionModeInfo();
+    return `<div style="margin-top:var(--space-sm);display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+        <span class="status-badge ${info.badgeClass}"><i class="${info.icon}"></i> ${escHtml(info.badgeLabel)}</span>
+    </div>`;
+}
+
+function renderWarnings(result) {
+    if (!result || !Array.isArray(result.warnings) || result.warnings.length === 0) return '';
+    return result.warnings.map(warning =>
+        alertBanner('warning', `<i class="ti ti-alert-triangle"></i> ${escHtml(warning)}`)
+    ).join('');
+}
+
 function showLoading(container, msg) {
     container.innerHTML = `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:10px;align-items:center;padding:var(--space-lg);color:var(--text-secondary)"><div class="spinner" style="width:18px;height:18px;border-width:2px"></div>${escHtml(msg)}</div>`;
 }
 
 function showError(container, msg) {
-    container.innerHTML = `<div class="alert alert-error"><i class="ti ti-alert-circle"></i> ${msg}</div>`;
+    container.innerHTML = `<div class="alert alert-error"><i class="ti ti-alert-circle"></i> ${escHtml(msg)}</div>`;
 }
 
 function alertBanner(type, html) {
@@ -761,6 +859,18 @@ function escHtml(str) {
 }
 
 function escRegex(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function detectCollectionsFromJson(jsonText) {
+    try {
+        const parsed = JSON.parse(jsonText);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+        return Object.entries(parsed)
+            .filter(([, value]) => Array.isArray(value))
+            .map(([key]) => key);
+    } catch {
+        return [];
+    }
+}
 
 function prettyJson(str) {
     try { return JSON.stringify(JSON.parse(str), null, 2); }
@@ -802,3 +912,449 @@ function copyCode(btn) {
         setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copy'; }, 2000);
     });
 }
+
+// ── Browser Preview Transport ────────────────────────────────────────────────
+
+function browserWarning(message) {
+    return message;
+}
+
+function browserValidationResponse(jsonContent, extra = {}) {
+    const isValidStructure = (() => {
+        try {
+            JSON.parse(jsonContent);
+            return true;
+        } catch {
+            return false;
+        }
+    })();
+
+    return {
+        success: true,
+        isValidStructure,
+        isValidUtf8: true,
+        utf8Error: '',
+        bytesChecked: UTF8_ENCODER.encode(jsonContent).length,
+        warnings: [
+            browserWarning('Browser Preview validates JSON structure locally. UTF-8 delimiter safety is assumed for in-memory browser strings.')
+        ],
+        ...extra
+    };
+}
+
+function addBrowserObject(results, collectionName, bytes, start, endExclusive, itemIndex) {
+    if (!results[collectionName]) results[collectionName] = [];
+    results[collectionName].push({
+        startPosition: start,
+        length: endExclusive - start,
+        itemIndex,
+        hash: null,
+        jsonContent: UTF8_DECODER.decode(bytes.subarray(start, endExclusive))
+    });
+}
+
+function browserScanByteRange(body) {
+    const startedAt = performance.now();
+    const jsonContent = body.jsonContent || '';
+    const bytes = UTF8_ENCODER.encode(jsonContent);
+    const collections = (body.targetCollections && body.targetCollections.length > 0)
+        ? body.targetCollections.filter(Boolean)
+        : detectCollectionsFromJson(jsonContent);
+    const warnings = [];
+
+    if (body.calculateHashes) {
+        warnings.push(browserWarning('Browser Preview skips MD5 hashing. Switch to Local API or Hosted API for real MD5 hashes.'));
+    }
+
+    if (collections.length === 0) {
+        return {
+            success: true,
+            collections: {},
+            stats: {
+                bytesProcessed: bytes.length,
+                totalObjectsFound: 0,
+                collectionsScanned: 0,
+                processingTimeMs: performance.now() - startedAt
+            },
+            warnings
+        };
+    }
+
+    const searchKeys = collections.map(name => `"${String(name).toLowerCase()}"`);
+    const maxKeyLen = searchKeys.reduce((max, key) => Math.max(max, key.length), 50);
+    const results = {};
+
+    let nameBuf = '';
+    let foundCollectionName = null;
+    let negate = false;
+    let inQuote = false;
+    let braceCount = 0;
+    let currentStart = -1;
+    let currentItemIndex = -1;
+
+    for (let i = 0; i < bytes.length; i++) {
+        const b = bytes[i];
+
+        if (foundCollectionName == null) {
+            const ch = b < 128 ? String.fromCharCode(b).toLowerCase() : '\0';
+            nameBuf += ch;
+            if (nameBuf.length > maxKeyLen + 2) {
+                nameBuf = nameBuf.slice(-(maxKeyLen + 2));
+            }
+
+            for (let k = 0; k < searchKeys.length; k++) {
+                if (nameBuf.endsWith(searchKeys[k])) {
+                    foundCollectionName = collections[k];
+                    nameBuf = '';
+                    break;
+                }
+            }
+            continue;
+        }
+
+        let isEscape = false;
+        if (b === 92) {
+            negate = !negate;
+            isEscape = true;
+        }
+
+        if (b === 34 && !negate) {
+            inQuote = !inQuote;
+            if (!isEscape) negate = false;
+            continue;
+        }
+
+        if (!isEscape) negate = false;
+        if (inQuote) continue;
+
+        if (b === 123) {
+            braceCount += 1;
+            if (braceCount === 1) {
+                currentStart = i;
+                currentItemIndex += 1;
+            }
+            continue;
+        }
+
+        if (b === 125) {
+            braceCount -= 1;
+            if (braceCount === 0 && currentStart >= 0) {
+                addBrowserObject(results, foundCollectionName, bytes, currentStart, i + 1, currentItemIndex);
+                currentStart = -1;
+            }
+            continue;
+        }
+
+        if (b === 93 && braceCount === 0) {
+            foundCollectionName = null;
+            nameBuf = '';
+            currentItemIndex = -1;
+        }
+    }
+
+    const totalObjects = Object.values(results).reduce((sum, items) => sum + items.length, 0);
+    return {
+        success: true,
+        collections: results,
+        stats: {
+            bytesProcessed: bytes.length,
+            totalObjectsFound: totalObjects,
+            collectionsScanned: Object.keys(results).length,
+            processingTimeMs: performance.now() - startedAt
+        },
+        warnings
+    };
+}
+
+function skipBalanced(text, startIndex, openChar, closeChar) {
+    let depth = 1;
+    let inQuote = false;
+    let escape = false;
+
+    for (let i = startIndex + 1; i < text.length; i++) {
+        const c = text[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (c === '\\') {
+            escape = true;
+            continue;
+        }
+        if (c === '"') {
+            inQuote = !inQuote;
+            continue;
+        }
+        if (inQuote) continue;
+        if (c === openChar) depth += 1;
+        else if (c === closeChar) depth -= 1;
+        if (depth === 0) return i;
+    }
+
+    return text.length - 1;
+}
+
+function seekToArrayStart(text, startIndex) {
+    let inQuote = false;
+    let escape = false;
+
+    for (let i = startIndex; i < text.length; i++) {
+        const c = text[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (c === '\\') {
+            escape = true;
+            continue;
+        }
+        if (c === '"') {
+            inQuote = !inQuote;
+            continue;
+        }
+        if (inQuote) continue;
+        if (c === '[') return i + 1;
+        if (c === '{') i = skipBalanced(text, i, '{', '}');
+    }
+
+    return -1;
+}
+
+function findPathArrayStart(text, jsonPath) {
+    const targetSegments = String(jsonPath || '')
+        .split('.')
+        .map(segment => segment.trim().toLowerCase())
+        .filter(Boolean);
+
+    if (targetSegments.length === 0) return -1;
+
+    let inQuote = false;
+    let escape = false;
+    let token = '';
+    let matchedDepth = 0;
+
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+
+        if (escape) {
+            if (inQuote) token += c;
+            escape = false;
+            continue;
+        }
+
+        if (c === '\\') {
+            if (inQuote) token += c;
+            escape = true;
+            continue;
+        }
+
+        if (c === '"') {
+            if (inQuote) {
+                const candidate = token.toLowerCase();
+                if (candidate === targetSegments[matchedDepth]) matchedDepth += 1;
+                else matchedDepth = candidate === targetSegments[0] ? 1 : 0;
+                token = '';
+                inQuote = false;
+                if (matchedDepth === targetSegments.length) {
+                    return seekToArrayStart(text, i + 1);
+                }
+            } else {
+                inQuote = true;
+                token = '';
+            }
+            continue;
+        }
+
+        if (inQuote) token += c;
+    }
+
+    return -1;
+}
+
+function extractObjectsFromArrayText(text, arrayStartIndex) {
+    const objects = [];
+    let inQuote = false;
+    let escape = false;
+    let depth = 0;
+    let objectStart = -1;
+    let itemIndex = 0;
+
+    for (let i = arrayStartIndex; i < text.length; i++) {
+        const c = text[i];
+
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (c === '\\') {
+            escape = true;
+            continue;
+        }
+        if (c === '"') {
+            inQuote = !inQuote;
+            continue;
+        }
+        if (inQuote) continue;
+
+        if (depth === 0 && c === ']') break;
+
+        if (c === '{') {
+            if (depth === 0) objectStart = i;
+            depth += 1;
+            continue;
+        }
+
+        if (c === '}') {
+            depth -= 1;
+            if (depth === 0 && objectStart >= 0) {
+                const jsonContent = text.slice(objectStart, i + 1);
+                objects.push({
+                    startPosition: UTF8_ENCODER.encode(text.slice(0, objectStart)).length,
+                    length: UTF8_ENCODER.encode(jsonContent).length,
+                    itemIndex,
+                    hash: null,
+                    jsonContent
+                });
+                itemIndex += 1;
+                objectStart = -1;
+            }
+        }
+    }
+
+    return objects;
+}
+
+function browserExtractPath(body) {
+    const startedAt = performance.now();
+    const jsonContent = body.jsonContent || '';
+    const arrayStartIndex = findPathArrayStart(jsonContent, body.jsonPath);
+    const objects = arrayStartIndex >= 0 ? extractObjectsFromArrayText(jsonContent, arrayStartIndex) : [];
+
+    return {
+        success: true,
+        objects,
+        stats: {
+            bytesProcessed: UTF8_ENCODER.encode(jsonContent).length,
+            totalObjectsFound: objects.length,
+            collectionsScanned: 1,
+            processingTimeMs: performance.now() - startedAt
+        },
+        warnings: [
+            browserWarning('Browser Preview skips MD5 hashing for path extraction. Switch to Local API or Hosted API for the exact C# behavior.')
+        ]
+    };
+}
+
+function indexElementForBrowserTrie(element, bag) {
+    if (Array.isArray(element)) {
+        element.forEach(item => indexElementForBrowserTrie(item, bag));
+        return;
+    }
+
+    if (element && typeof element === 'object') {
+        Object.entries(element).forEach(([key, value]) => {
+            if (key.trim()) bag.push(key);
+            indexElementForBrowserTrie(value, bag);
+        });
+        return;
+    }
+
+    if (typeof element === 'string') {
+        element
+            .split(/[\s,.;:_-]+/)
+            .filter(word => word.length > 2)
+            .forEach(word => bag.push(word));
+        return;
+    }
+
+    if (typeof element === 'number') bag.push(String(element));
+}
+
+function browserTrieIndex(body) {
+    const startedAt = performance.now();
+    const terms = [];
+    const searchTerm = (body.searchTerm || '').trim().toLowerCase();
+
+    const parsed = JSON.parse(body.jsonContent || '{}');
+    indexElementForBrowserTrie(parsed, terms);
+
+    const matches = searchTerm
+        ? [...new Set(terms.filter(term => term.toLowerCase().startsWith(searchTerm)))].sort((a, b) => a.localeCompare(b))
+        : [];
+
+    return {
+        success: true,
+        matches,
+        totalIndexed: terms.length,
+        warnings: [],
+        stats: {
+            processingTimeMs: performance.now() - startedAt
+        }
+    };
+}
+
+function browserSemanticSearch(body) {
+    const startedAt = performance.now();
+    const scanResult = browserScanByteRange({
+        jsonContent: body.jsonContent,
+        targetCollections: body.collectionPaths,
+        calculateHashes: false,
+        validateUtf8: false
+    });
+    const allObjects = Object.values(scanResult.collections).flat().sort((a, b) => a.startPosition - b.startPosition);
+    const fields = body.indexedFields || [];
+    const searchTerm = String(body.searchTerm || '').trim().toLowerCase();
+    let termsIndexed = 0;
+
+    const matches = [];
+    allObjects.forEach(obj => {
+        if (!obj.jsonContent) return;
+        try {
+            const parsed = JSON.parse(obj.jsonContent);
+            const words = extractWords(parsed, fields);
+            termsIndexed += words.length;
+            const matchedWords = [...new Set(words.filter(word => PluginRegistry.MatchEngine.match(word, searchTerm)))];
+            if (matchedWords.length > 0) matches.push(obj);
+        } catch {
+            // Ignore malformed objects in preview mode
+        }
+    });
+
+    return {
+        success: true,
+        objects: matches.slice(0, Math.max(1, body.maxResults || 10)),
+        matchedOffsets: matches.map(match => match.startPosition),
+        indexedFields: fields,
+        collectionPaths: body.collectionPaths && body.collectionPaths.length > 0 ? body.collectionPaths : detectCollectionsFromJson(body.jsonContent),
+        stats: {
+            bytesProcessed: scanResult.stats.bytesProcessed,
+            objectsIndexed: allObjects.length,
+            matchesFound: matches.length,
+            collectionsScanned: scanResult.stats.collectionsScanned,
+            termsIndexed,
+            processingTimeMs: performance.now() - startedAt
+        },
+        warnings: [
+            browserWarning('Browser Preview mirrors semantic indexing locally in JavaScript. Switch to Local API or Hosted API for the exact C# semantic-index pipeline.')
+        ]
+    };
+}
+
+window.JsonToolsBrowserTransport = {
+    async fetch(path, body) {
+        switch (path) {
+            case '/api/scan/byte-range':
+                return browserScanByteRange(body);
+            case '/api/pathscan/extract':
+                return browserExtractPath(body);
+            case '/api/trie/index':
+                return browserTrieIndex(body);
+            case '/api/semantic/search':
+                return browserSemanticSearch(body);
+            case '/api/scan/validate':
+                return browserValidationResponse(body.jsonContent || '');
+            default:
+                throw new Error(`Browser Preview does not implement ${path}`);
+        }
+    }
+};

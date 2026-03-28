@@ -145,15 +145,35 @@ const PluginRegistry = (() => {
     // Signature: (path: string, body: object) => Promise<object>
 
     const API_BASE = 'https://tf4qymuc4kepzxytuk3dinfjbq0lwyyw.lambda-url.us-west-2.on.aws';
+    const LOCAL_API_BASE = 'http://localhost:5968';
 
-    const ApiTransport = makeSlot('lambda', async (path, body) => {
-        const res = await fetch(`${API_BASE}${path}`, {
+    async function postJson(baseUrl, path, body) {
+        const target = `${baseUrl}${path}`;
+        const res = await fetch(target, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         return res.json();
+    }
+
+    const ApiTransport = makeSlot('auto', async (path, body) => {
+        const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (isLocalhost && window.location.port === '5968')
+            return postJson('', path, body);
+        if (isLocalhost)
+            return postJson(LOCAL_API_BASE, path, body);
+        return postJson(API_BASE, path, body);
+    });
+
+    ApiTransport.register('same-origin', async (path, body) => postJson('', path, body));
+    ApiTransport.register('localhost', async (path, body) => postJson(LOCAL_API_BASE, path, body));
+    ApiTransport.register('lambda', async (path, body) => postJson(API_BASE, path, body));
+    ApiTransport.register('browser', async (path, body) => {
+        if (!window.JsonToolsBrowserTransport || typeof window.JsonToolsBrowserTransport.fetch !== 'function')
+            throw new Error('Browser Preview is not ready yet.');
+        return window.JsonToolsBrowserTransport.fetch(path, body);
     });
 
     // Mock transport for testing — returns canned responses
@@ -178,6 +198,16 @@ const PluginRegistry = (() => {
         }
         if (path.includes('validate')) {
             return { success: true, isValidStructure: true, isValidUtf8: true, bytesChecked: 50 };
+        }
+        if (path.includes('semantic')) {
+            return {
+                success: true,
+                objects: [{ startPosition: 0, length: 50, itemIndex: 0, jsonContent: '{"id":1,"title":"Mock"}' }],
+                matchedOffsets: [0],
+                indexedFields: ['title'],
+                collectionPaths: ['mock'],
+                stats: { bytesProcessed: 50, objectsIndexed: 1, matchesFound: 1, collectionsScanned: 1, termsIndexed: 3, processingTimeMs: 1 }
+            };
         }
         return { success: true };
     });

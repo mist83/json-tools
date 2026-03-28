@@ -4,12 +4,17 @@
 //        HEADLESS=false node tests/run.js   (watch mode)
 //        BASE_URL=http://localhost:5000 node tests/run.js
 
+const fs = require('fs');
 const puppeteer = require('puppeteer');
 
 const BASE_URL = process.env.BASE_URL || 'https://json-tools.mikesendpoint.com';
 const HEADLESS = process.env.HEADLESS !== 'false';
 const API_TIMEOUT = 25000; // 25s — Lambda cold start can be slow
 const NAV_TIMEOUT = 30000;
+const DEFAULT_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH
+    || process.env.CHROME_BIN
+    || (fs.existsSync(DEFAULT_CHROME) ? DEFAULT_CHROME : undefined);
 
 // ── Test registry ─────────────────────────────────────────────────────────────
 const suites = [
@@ -21,6 +26,7 @@ const suites = [
     require('./suite-trie-index'),
     require('./suite-semantic-search'),
     require('./suite-validate'),
+    require('./suite-execution-mode'),
     require('./suite-about'),
     require('./suite-plugin-registry'),
 ];
@@ -34,8 +40,9 @@ async function run() {
     console.log(`${'═'.repeat(60)}\n`);
 
     const browser = await puppeteer.launch({
+        executablePath: EXECUTABLE_PATH,
         headless: HEADLESS,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-cache'],
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-cache', '--disable-gpu', '--no-first-run'],
         defaultViewport: { width: 1280, height: 900 }
     });
 

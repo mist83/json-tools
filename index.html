@@ -41,6 +41,7 @@
                 <span class="status-badge status-info"><i class="ti ti-brand-github"></i> mist83/json-tools</span>
                 <span class="status-badge status-enabled"><i class="ti ti-check"></i> 105 tests passing</span>
                 <span class="status-badge status-warning"><i class="ti ti-bolt"></i> .NET 8 · Zero-alloc</span>
+                <span class="status-badge status-info" id="execution-mode-badge"><i class="ti ti-switch-3"></i> Auto mode</span>
             </div>
         </div>
 
@@ -96,10 +97,27 @@
                 ══════════════════════════════════════════════════ -->
                 <div class="section active" id="content-home">
                     <h2><i class="ti ti-home"></i> Home</h2>
-                    <p class="text-secondary">Load a JSON dataset to use across all tools. Stored in your browser — nothing is sent to the server until you run a tool.</p>
+                    <p class="text-secondary">Load a JSON dataset to use across all tools, then choose where the work happens: hosted API, local API, or a browser-only privacy preview.</p>
 
                     <!-- Active dataset status -->
                     <div id="home-active-status"></div>
+
+                    <div class="card" style="margin-top:var(--space-md)">
+                        <h3><i class="ti ti-switch-3"></i> Execution Mode</h3>
+                        <p class="text-secondary" style="font-size:var(--text-sm)">Pick how the demo runs before you try private data. <strong>Browser Preview</strong> keeps everything in this tab. <strong>Local API</strong> targets <code>http://localhost:5968</code>. <strong>Hosted API</strong> uses the public demo backend.</p>
+                        <div class="grid-2 gap-md" style="align-items:end">
+                            <div>
+                                <label for="execution-mode">Mode:</label>
+                                <select id="execution-mode" onchange="setExecutionMode(this.value)">
+                                    <option value="auto">Auto — localhost stays local, public site uses hosted API</option>
+                                    <option value="localhost">Local API — http://localhost:5968</option>
+                                    <option value="browser">Browser Preview — keep data in this tab</option>
+                                    <option value="lambda">Hosted API — public demo backend</option>
+                                </select>
+                            </div>
+                            <div id="execution-mode-status" class="text-secondary" style="font-size:var(--text-sm)"></div>
+                        </div>
+                    </div>
 
                     <!-- Three ways to load data -->
                     <div class="grid-3 gap-md" style="margin-top:var(--space-md)">
@@ -237,7 +255,7 @@
                     <!-- ── Semantic Search ─────────────────────── -->
                     <div class="tool-panel" id="tool-semantic">
                         <h2><i class="ti ti-brain"></i> Semantic Search Index</h2>
-                        <p class="text-secondary">Build a keyword→byte-offset index from specific JSON fields. Search returns full matching objects without loading the entire file into memory.</p>
+                        <p class="text-secondary">Build a keyword→byte-offset index from specific JSON fields. API modes use the real C# semantic index; Browser Preview mirrors the workflow locally for privacy-sensitive experimentation.</p>
 
                         <div style="display:grid;gap:var(--space-sm);margin-bottom:var(--space-md)">
                             <div>
@@ -312,7 +330,7 @@
                         </div>
                         <div class="card">
                             <div class="card-title"><i class="ti ti-brain"></i> Semantic Search</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Index specific fields (title, cast, description) by keyword → byte offset. Search a 500 MB catalog in milliseconds. N-gram phrase search supported.</p>
+                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Index specific fields (title, cast, description) by keyword → byte offset. The demo now exposes the real semantic-index path in API modes, with a browser-only preview for private data.</p>
                         </div>
                         <div class="card">
                             <div class="card-title"><i class="ti ti-shield-check"></i> UTF-8 Validation</div>
@@ -324,8 +342,14 @@
                         </div>
                     </div>
 
+                    <div class="content-card">
+                        <h3><i class="ti ti-lock"></i> Demo Modes</h3>
+                        <p class="text-secondary" style="font-size:var(--text-sm)">You can now try the same UI three ways: hosted API, localhost API, or Browser Preview. That makes the privacy story clearer today and creates a clean stepping stone toward a future C# WebAssembly build where the shared request/response contract stays the same but the execution target moves into the browser.</p>
+                    </div>
+
                     <div class="content-card" style="margin-top:var(--space-md)">
                         <h3><i class="ti ti-terminal"></i> Quick Start</h3>
+                        <p class="text-secondary" style="font-size:var(--text-sm)">Run the demo locally and open <code>http://localhost:5968</code>. Swagger stays available at <code>/swagger</code>.</p>
                         <pre><code>// Byte-range scan
 var result = await JsonTools.Scan(stream)
     .ForCollections("products", "reviews")
