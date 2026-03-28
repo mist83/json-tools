@@ -178,6 +178,18 @@ If you want a future “no upload, no install, still real C#” story, WebAssemb
 
 Today’s Browser Preview mode is the low-friction bridge: users can keep data local now, while the UI and API contract stay aligned with a later C# WebAssembly implementation.
 
+### Current Status
+
+There is no checked-in Blazor/WebAssembly host in this repo yet. If you deploy the repo exactly as it stands today, you get the current HTML/CSS/JS demo:
+
+- **Hosted API** mode calls the deployed .NET backend
+- **Local API** mode calls `http://localhost:5968`
+- **Browser Preview** keeps data local, but it is still the JavaScript mirror path
+
+That means a deploy by itself does **not** produce the “no upload, still real C# in the browser” version yet.
+
+For the next step, including the exact project scaffold, contract-sharing plan, local verification, and S3/CloudFront publish handoff, see [docs/blazor-wasm/README.md](docs/blazor-wasm/README.md).
+
 ## ⚡ Performance
 
 - `ArrayPool<byte>.Shared` replaces `new byte[]` — eliminates GC pressure on large files
