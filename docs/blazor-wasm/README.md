@@ -2,6 +2,8 @@
 
 Short answer: no, there is not already a working “no-touch real C# in the browser” Blazor app checked into this repo.
 
+For a non-technical walkthrough of the WASM idea, tradeoffs, and streaming discussion, see [../wasm-explainer.html](../wasm-explainer.html).
+
 If you deploy the repo exactly as it stands today, you will publish the current static HTML/CSS/JS demo. That demo already gives you:
 
 - real .NET behavior in **Hosted API** mode

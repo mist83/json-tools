@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JsonUtilities WASM Explainer</title>
+    <style>
+        :root {
+            --bg: #f5efe6;
+            --card: #fffaf3;
+            --ink: #1f2933;
+            --muted: #52606d;
+            --accent: #9f4f24;
+            --accent-soft: #f2d7c7;
+            --line: #e6d8cc;
+            --ok: #146c43;
+            --warn: #8a5b00;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Georgia", "Times New Roman", serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at top left, #fff7ef 0, #fff7ef 18%, transparent 18%),
+                linear-gradient(180deg, #f8f1e8 0%, #f3ebe1 100%);
+            line-height: 1.55;
+        }
+
+        .wrap {
+            width: min(1100px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 0 64px;
+        }
+
+        .hero {
+            display: grid;
+            gap: 18px;
+            padding: 28px;
+            border: 1px solid var(--line);
+            background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(250,242,234,0.96));
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(53, 41, 32, 0.08);
+        }
+
+        .eyebrow {
+            font-size: 0.86rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        h1, h2, h3 {
+            margin: 0 0 12px;
+            line-height: 1.1;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 4vw, 3.6rem);
+        }
+
+        h2 {
+            font-size: clamp(1.4rem, 2vw, 2rem);
+        }
+
+        p {
+            margin: 0 0 12px;
+            color: var(--ink);
+        }
+
+        .lede {
+            font-size: 1.15rem;
+            max-width: 56rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 20px rgba(53, 41, 32, 0.05);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+
+        .good { color: var(--ok); }
+        .warn { color: var(--warn); }
+        .muted { color: var(--muted); }
+
+        .section {
+            margin-top: 28px;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        li + li {
+            margin-top: 8px;
+        }
+
+        .flow {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 20px;
+            background: #fffdf9;
+            border: 1px solid var(--line);
+        }
+
+        .compare {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--line);
+            vertical-align: top;
+        }
+
+        th {
+            background: #f8efe6;
+        }
+
+        .callout {
+            border-left: 4px solid var(--accent);
+            padding: 14px 16px;
+            background: #fff5ec;
+            border-radius: 12px;
+        }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.95em;
+            background: rgba(159, 79, 36, 0.08);
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 32px;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <section class="hero">
+            <p class="eyebrow">WASM, Privacy, And Why This Library Matters</p>
+            <h1>How this works in plain English</h1>
+            <p class="lede">
+                The idea is simple: instead of uploading your JSON to someone else's server, the browser downloads a small app,
+                loads the .NET runtime plus your library, and does the work on the user's machine. The CDN only serves the app files.
+                The JSON never has to leave the tab.
+            </p>
+            <div class="grid">
+                <div class="card">
+                    <span class="badge">What the user trusts</span>
+                    <p style="margin-top:12px">
+                        They trust a static site more than a mystery backend because the private-data path can be designed so there is
+                        no API to call in the first place.
+                    </p>
+                </div>
+                <div class="card">
+                    <span class="badge">What WASM changes</span>
+                    <p style="margin-top:12px">
+                        It moves the computation from "their file goes to your server" to "your code goes to their browser."
+                    </p>
+                </div>
+                <div class="card">
+                    <span class="badge">What stays true</span>
+                    <p style="margin-top:12px">
+                        The browser is still sandboxed. This is not a secret local daemon. It is just code running inside the page.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="flow">
+                <h2>The flow</h2>
+                <div class="mermaid">
+flowchart LR
+    A["CloudFront / static host"] --> B["Browser downloads app + .NET runtime + JsonUtilities DLL"]
+    B --> C["User picks a local JSON file"]
+    C --> D["Browser streams bytes into scanner / indexer"]
+    D --> E["Only offsets, hashes, and index entries are kept"]
+    E --> F["UI shows matches, byte ranges, and search results"]
+    F --> G["Original JSON stays on the user's machine"]
+                </div>
+            </div>
+        </section>
+
+        <section class="section grid">
+            <div class="card">
+                <h2>Why this library is efficient already</h2>
+                <ul>
+                    <li>It works with raw bytes and byte offsets instead of fully turning huge JSON files into giant object graphs.</li>
+                    <li>It reuses buffers with <code>ArrayPool&lt;byte&gt;</code> instead of constantly allocating fresh arrays.</li>
+                    <li>It can extract only the matching object later, which means "find first, read exact object second."</li>
+                    <li>Its semantic index stores byte offsets, not full copied objects.</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>What that means to a lay person</h2>
+                <p>
+                    Imagine looking up books in a library by shelf number instead of photocopying every page into your backpack.
+                    This library is trying to remember <em>where</em> things are rather than carrying all the content around all the time.
+                </p>
+            </div>
+
+            <div class="card">
+                <h2>Important honesty check</h2>
+                <p>
+                    The current scanner in this repo still reads the full input stream into a pooled buffer before scanning it. So it is
+                    efficient compared with naive JSON parsing, but it is <strong>not yet a true constant-memory streamer</strong>.
+                </p>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Client-side WASM in one sentence</h2>
+            <div class="callout">
+                CloudFront serves code. The browser runs the code. The user's JSON stays local unless the app deliberately sends it somewhere.
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>What you gain if you ship the DLL in WASM</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Trust</h3>
+                    <p>The best privacy feature is not collecting the file at all.</p>
+                </div>
+                <div class="card">
+                    <h3>Lower infra cost</h3>
+                    <p>You are serving static files instead of paying for CPU time every time a curious person tries the tool.</p>
+                </div>
+                <div class="card">
+                    <h3>Consistency</h3>
+                    <p>The same core library can power the hosted API, localhost mode, and browser-only mode.</p>
+                </div>
+                <div class="card">
+                    <h3>Faster feedback</h3>
+                    <p>For small and medium files, the user gets immediate results without waiting on uploads.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section compare">
+            <h2>If you ported it to C or Rust instead</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Choice</th>
+                        <th>What gets better</th>
+                        <th>What gets worse</th>
+                        <th>Best fit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>C# in WASM</strong></td>
+                        <td>Fastest path to shipping because you reuse the current library and mental model. Good safety. Strong maintainability.</td>
+                        <td>Bigger runtime payload than a tiny Rust or C WASM module. Garbage collection exists. Raw hot-loop speed usually will not beat a tuned native-style parser.</td>
+                        <td>Best choice if time-to-product and code reuse matter most.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>C in WASM</strong></td>
+                        <td>Potentially the leanest runtime overhead and strongest raw control over memory layout, parser design, and cache behavior.</td>
+                        <td>Highest fragility. Hardest to maintain safely. Easiest place to introduce memory bugs or footguns while chasing speed.</td>
+                        <td>Best when maximum low-level performance matters more than developer velocity.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rust in WASM</strong></td>
+                        <td>Often close to C-like performance, with much stronger safety. Great fit for streaming parsers, zero-copy-ish slices, and explicit memory discipline.</td>
+                        <td>Still a rewrite. More complex than staying in C#. Browser interop and team ergonomics depend on Rust familiarity.</td>
+                        <td>Best long-term choice if you want serious performance work without giving up memory safety.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section grid">
+            <div class="card">
+                <h2>Thought experiment: truly streaming it</h2>
+                <p>
+                    Yes, the idea makes sense. In the ideal version, you read a chunk, scan it, keep a tiny amount of carry-over state,
+                    emit offsets, and move on. Memory stays roughly flat while file size grows.
+                </p>
+            </div>
+
+            <div class="card">
+                <h2>But one important correction</h2>
+                <p>
+                    The index is <strong>usually</strong> smaller than the original file, but not <strong>guaranteed</strong> to be. If you index a huge number of unique terms,
+                    n-grams, or repeated offset lists, index overhead can grow a lot. It is safer to say: the index is often a fraction of the file, not always.
+                </p>
+            </div>
+
+            <div class="card">
+                <h2>What "infinite file" really means</h2>
+                <p>
+                    Not truly infinite. It means "far larger than RAM" by using chunked scanning plus a bounded working set.
+                    The real limits become browser memory, index size, storage quota, and patience.
+                </p>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>The smartest next engineering move</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Phase 1</h3>
+                    <p>Ship the current C# library into a standalone WASM app so the privacy story becomes true without a rewrite.</p>
+                </div>
+                <div class="card">
+                    <h3>Phase 2</h3>
+                    <p>Refactor the scanner so it can process chunk-by-chunk instead of reading the whole stream first.</p>
+                </div>
+                <div class="card">
+                    <h3>Phase 3</h3>
+                    <p>If performance still matters enough, benchmark a Rust parser/indexer core before considering a full rewrite.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Bottom line</h2>
+            <div class="callout">
+                The real win from WASM is not magic speed. The real win is that you can hand the user a tool where the computation happens on their machine,
+                the raw data never has to hit your server, and the same core logic can still power the "real" hosted product.
+            </div>
+        </section>
+
+        <footer>
+            Built as a repo explainer for the JsonUtilities WASM direction. For the implementation handoff, see
+            <code>docs/blazor-wasm/README.md</code>.
+        </footer>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+</body>
+</html>
