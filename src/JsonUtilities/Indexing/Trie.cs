@@ -102,6 +102,40 @@ public class Trie<T> where T : class
     }
 
     /// <summary>
+    /// Returns the datum for an exact keyword match, or creates and inserts one when absent.
+    /// Unlike <see cref="Search"/>, this does not traverse descendant prefixes.
+    /// </summary>
+    /// <param name="keyword">The exact keyword to resolve.</param>
+    /// <param name="factory">Factory used to create the datum when the keyword is not present.</param>
+    /// <returns>The existing or newly created datum for the exact keyword.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal T GetOrAddExact(string keyword, Func<T> factory)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(keyword);
+        ArgumentNullException.ThrowIfNull(factory);
+
+        Node<T> node = Prefix(keyword.AsSpan());
+        for (int i = node.Depth; i < keyword.Length; i++)
+        {
+            var newNode = new Node<T>(keyword[i], null, node.Depth + 1);
+            node.Children ??= new List<Node<T>>();
+            node.Children.Add(newNode);
+            node = newNode;
+        }
+
+        node.Children ??= new List<Node<T>>();
+        foreach (var child in node.Children)
+        {
+            if (child.Value == '$' && child.Data != null)
+                return child.Data;
+        }
+
+        var datum = factory();
+        node.Children.Add(new Node<T>('$', datum, node.Depth + 1));
+        return datum;
+    }
+
+    /// <summary>
     /// Returns the total number of terminal nodes (i.e. the number of inserted keyword→datum pairs).
     /// </summary>
     /// <returns>The count of all terminal nodes in the trie.</returns>

@@ -213,7 +213,7 @@ For the next step, including the exact project scaffold, contract-sharing plan, 
 - `StringComparer.OrdinalIgnoreCase` on collection dictionaries
 - `MethodImpl(AggressiveInlining)` on hot paths
 - `FileStream` with `useAsync: true` and `FileShare.Read`
-- Semantic index: 500 MB catalog → ~20-40 MB index, sub-millisecond prefix search
+- Semantic index benchmarks are now tracked in-repo; the latest local sample built 10,000 synthetic items in ~79 ms and searched offsets in ~143 us on an Apple M4. See [docs/performance/README.md](docs/performance/README.md).
 
 For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performance/README.md](docs/performance/README.md).
 
@@ -221,7 +221,7 @@ For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performa
 
 ```bash
 dotnet test
-# Passed! - Failed: 0, Passed: 105, Skipped: 0
+# Passed! - Failed: 0, Passed: 110, Skipped: 0
 ```
 
 ```bash

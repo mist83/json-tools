@@ -14,14 +14,14 @@ namespace JsonUtilities.Indexing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The builder uses <see cref="JsonUtilities.GenericByteRangeScanner"/> to locate objects,
-/// then parses each object's configured fields using <see cref="System.Text.Json.JsonDocument"/>
-/// to extract tokenizable values. Only the byte offset is stored in the index — the content
-/// is never retained in memory after tokenization.
+/// The builder uses <see cref="JsonUtilities.GenericByteRangeScanner"/> to locate objects and
+/// processes them incrementally through the scanner's streaming callback path. Each object's
+/// configured fields are parsed with <see cref="System.Text.Json.JsonDocument"/> and tokenized
+/// immediately; only byte offsets are retained in the final index.
 /// </para>
 /// <para>
-/// For a 500 MB catalog with 100k shows, each having title + cast + description, the resulting
-/// index typically uses 20-40 MB of memory — well within Lambda/container constraints.
+/// Actual build cost depends on field selection, token cardinality, and n-gram settings.
+/// Use the benchmark harness in <c>docs/performance/README.md</c> to measure representative workloads.
 /// </para>
 /// </remarks>
 public class SemanticIndexBuilder
@@ -68,16 +68,11 @@ public class SemanticIndexBuilder
             ContinueOnError = true
         };
 
-        var result = await scanner.ScanAsync(stream, scanOptions);
-
-        foreach (var (_, objects) in result.Collections)
+        await scanner.ProcessStreamAsync(stream, (_, obj) =>
         {
-            foreach (var obj in objects)
-            {
-                if (obj.JsonContent == null) continue;
-                IndexObject(obj.StartPosition, obj.JsonContent, index);
-            }
-        }
+            if (obj.JsonContent == null) return;
+            IndexObject(obj.StartPosition, obj.JsonContent, index);
+        }, scanOptions);
 
         return index;
     }

@@ -8,7 +8,7 @@ namespace JsonUtilities.Indexing;
 /// <summary>
 /// A memory-efficient semantic search index that maps keywords to byte offsets in a JSON source file.
 /// Built by <see cref="SemanticIndexBuilder"/>, the index stores only positions — never content —
-/// so memory usage stays flat regardless of file size.
+/// so memory growth tracks indexed terms and offsets rather than copied JSON objects.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -17,8 +17,8 @@ namespace JsonUtilities.Indexing;
 /// then be used for targeted byte-range reads to retrieve the actual JSON objects on demand.
 /// </para>
 /// <para>
-/// This design enables blazing-fast prefix search (O(prefix_length)) with minimal memory overhead:
-/// a 500 MB catalog file with 100k objects might produce a 20-40 MB index.
+/// Actual memory usage depends on indexed fields, token cardinality, and n-gram settings.
+/// Use the benchmark harness in <c>docs/performance/README.md</c> to measure representative datasets.
 /// </para>
 /// </remarks>
 public class JsonIndex
@@ -39,21 +39,7 @@ public class JsonIndex
     {
         if (string.IsNullOrEmpty(keyword)) return;
 
-        // Find existing offset list for this keyword, or create a new one
-        var existing = _trie.Search(keyword);
-        OffsetList? list = null;
-        foreach (var item in existing)
-        {
-            list = item;
-            break;
-        }
-
-        if (list == null)
-        {
-            list = new OffsetList();
-            _trie.Insert(new NodeDataPointer<OffsetList> { Keyword = keyword, Datum = list });
-        }
-
+        var list = _trie.GetOrAddExact(keyword, static () => new OffsetList());
         list.Offsets.Add(byteOffset);
         _termCount++;
     }

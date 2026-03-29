@@ -181,6 +181,29 @@ public class SemanticIndexTests
     }
 
     [Fact]
+    public async Task SemanticIndex_ExactKeyword_DoesNotPolluteLongerPrefixTerm()
+    {
+        const string json = """
+            {
+              "items": [
+                { "description": "streaming analytics" },
+                { "description": "stream data pipelines" }
+              ]
+            }
+            """;
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        var index = await new SemanticIndexBuilder(new SemanticIndexOptions
+        {
+            IndexedFields = ["description"],
+            CollectionPaths = ["items"]
+        }).BuildAsync(stream);
+
+        index.Search("stream").Should().HaveCount(2);
+        index.Search("streami").Should().ContainSingle("only the 'streaming' object should match this longer prefix");
+    }
+
+    [Fact]
     public async Task SemanticIndex_LargeDataset_MemoryStaysReasonable()
     {
         using var stream = Helpers.LoadFixture("large_collection.json");
