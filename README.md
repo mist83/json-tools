@@ -58,6 +58,20 @@ foreach (var (name, objects) in result.Collections)
     Console.WriteLine($"{name}: {objects.Length} objects");
 ```
 
+### Streaming Byte-Range Processing
+
+```csharp
+await JsonTools.Scan(stream)
+    .ForCollections("products")
+    .SkipValidation()
+    .ProcessAsync((collection, obj) =>
+    {
+        Console.WriteLine($"{collection} [{obj.StartPosition}+{obj.Length}]");
+    });
+```
+
+Use `ProcessAsync(...)` when the input stream may be larger than RAM and you want to process objects incrementally instead of collecting the entire scan result first.
+
 ### JSON Path Extraction
 
 ```csharp

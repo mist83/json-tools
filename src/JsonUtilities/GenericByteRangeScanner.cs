@@ -7,7 +7,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using JsonUtilities.Models;
@@ -22,15 +21,14 @@ namespace JsonUtilities;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The scanner reads the entire stream into a pooled <see cref="ArrayPool{T}"/> buffer, then performs
-/// a single sequential pass over the bytes to locate object boundaries. This approach avoids
-/// repeated allocations and is cache-friendly for large files.
+/// The scanner processes the source stream in fixed-size chunks and keeps only parser state plus the
+/// current object in memory. This allows callers to process files larger than available RAM, as long as
+/// downstream result accumulation is also kept bounded.
 /// </para>
 /// <para>
 /// When <see cref="JsonScanOptions.ParallelProcessing"/> is enabled, object processing (hashing,
-/// validation, property extraction) is offloaded to a <see cref="Channel{T}"/> consumer running
-/// on the thread pool. The byte scan itself remains sequential — you cannot parallelize a
-/// stateful byte-by-byte state machine.
+/// validation, property extraction) is offloaded to worker tasks. The byte scan itself remains
+/// sequential because JSON boundary detection is inherently stateful.
 /// </para>
 /// </remarks>
 public class GenericByteRangeScanner : IJsonScanner
@@ -42,7 +40,10 @@ public class GenericByteRangeScanner : IJsonScanner
     private const byte ByteQuote = (byte)'"';
     private const byte ByteOpenBrace = (byte)'{';
     private const byte ByteCloseBrace = (byte)'}';
+    private const byte ByteOpenBracket = (byte)'[';
     private const byte ByteCloseBracket = (byte)']';
+    private static readonly string[] DefaultCollectionCandidates = ["items", "data", "results", "products", "records", "entries", "list", "array"];
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     /// <summary>
     /// Initializes a new <see cref="GenericByteRangeScanner"/> with optional validator and logger.
@@ -73,49 +74,54 @@ public class GenericByteRangeScanner : IJsonScanner
     {
         var metadata = new ScanMetadata { StartTime = DateTime.UtcNow };
         var result = new JsonScanResult { Metadata = metadata };
-        var errors = new List<string>();
+        var errors = new ConcurrentBag<string>();
 
         try
         {
-            int length = (int)stream.Length;
-            byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(length);
-            try
+            if (options.ParallelProcessing)
             {
-                int bytesRead = 0;
-                while (bytesRead < length)
-                    bytesRead += await stream.ReadAsync(rentedBuffer.AsMemory(bytesRead, length - bytesRead));
+                var collectionItems = new ConcurrentDictionary<string, ConcurrentBag<JsonObjectRange>>(StringComparer.OrdinalIgnoreCase);
+                await ProcessStreamInternalAsync(
+                    stream,
+                    options,
+                    (collectionName, objectRange) =>
+                        collectionItems.GetOrAdd(collectionName, _ => new ConcurrentBag<JsonObjectRange>()).Add(objectRange),
+                    metadata,
+                    errors);
 
-                metadata.BytesProcessed = length;
-
-                if (options.ValidateUtf8)
-                {
-                    try { _validator.ValidateUtf8Safety(Encoding.UTF8.GetString(rentedBuffer, 0, length)); }
-                    catch (Exception ex)
+                result.Collections = collectionItems.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.OrderBy(r => r.ItemIndex).ToArray(),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                var collectionItems = new Dictionary<string, List<JsonObjectRange>>(StringComparer.OrdinalIgnoreCase);
+                await ProcessStreamInternalAsync(
+                    stream,
+                    options,
+                    (collectionName, objectRange) =>
                     {
-                        errors.Add($"UTF-8 validation failed: {ex.Message}");
-                        if (!options.ContinueOnError)
+                        if (!collectionItems.TryGetValue(collectionName, out var list))
                         {
-                            result.ValidationErrors = errors.ToArray();
-                            return result;
+                            list = [];
+                            collectionItems[collectionName] = list;
                         }
-                    }
-                }
 
-                Dictionary<string, JsonObjectRange[]> collections;
-                if (options.ParallelProcessing)
-                    collections = await ScanForCollectionsParallel(rentedBuffer, length, options, errors, metadata);
-                else
-                    collections = await ScanForCollections(rentedBuffer, length, options, errors);
+                        list.Add(objectRange);
+                    },
+                    metadata,
+                    errors);
 
-                result.Collections = collections;
-                metadata.TotalObjectsFound = collections.Values.Sum(x => x.Length);
-                metadata.CollectionsScanned = collections.Count;
-                Log($"Scan complete: {metadata.TotalObjectsFound} objects in {metadata.CollectionsScanned} collections.");
+                result.Collections = collectionItems.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.ToArray(),
+                    StringComparer.OrdinalIgnoreCase);
             }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
-            }
+
+            metadata.TotalObjectsFound = result.Collections.Values.Sum(x => x.Length);
+            metadata.CollectionsScanned = result.Collections.Count;
+            Log($"Scan complete: {metadata.TotalObjectsFound} objects in {metadata.CollectionsScanned} collections.");
         }
         catch (Exception ex)
         {
@@ -132,344 +138,435 @@ public class GenericByteRangeScanner : IJsonScanner
         return result;
     }
 
-    // ── Sequential scan ──────────────────────────────────────────────────────
-
-    private async Task<Dictionary<string, JsonObjectRange[]>> ScanForCollections(
-        byte[] bytes, int length, JsonScanOptions options, List<string> errors)
+    /// <summary>
+    /// Processes a JSON stream incrementally, invoking <paramref name="processor"/> for each object found
+    /// in the requested collections.
+    /// </summary>
+    /// <param name="stream">A readable stream containing JSON content.</param>
+    /// <param name="processor">Callback invoked with the collection name and discovered object range.</param>
+    /// <param name="options">Scan configuration options.</param>
+    public Task ProcessStreamAsync(Stream stream, Action<string, JsonObjectRange> processor, JsonScanOptions options)
     {
-        var collectionItems = new Dictionary<string, List<JsonObjectRange>>(StringComparer.OrdinalIgnoreCase);
-        string[] collections = options.TargetCollections ?? await DetectCollections(bytes, length);
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(processor);
+        ArgumentNullException.ThrowIfNull(options);
 
-        var searchKeys = collections.Select(c => $"\"{c.ToLowerInvariant()}\"").ToArray();
-        int maxKeyLen = searchKeys.Length > 0 ? searchKeys.Max(k => k.Length) : 50;
+        return ProcessStreamInternalAsync(stream, options, processor, metadata: null, errors: null);
+    }
 
-        bool negate = false;
-        bool inQuote = false;
-        int braceCount = 0;
-        string? foundCollectionName = null;
-        JsonObjectRange? currentObject = null;
-        int itemIndex = -1;
+    private async Task ProcessStreamInternalAsync(
+        Stream stream,
+        JsonScanOptions options,
+        Action<string, JsonObjectRange> processor,
+        ScanMetadata? metadata,
+        ConcurrentBag<string>? errors)
+    {
+        if (!stream.CanRead)
+            throw new InvalidOperationException("Stream must be readable.");
 
-        var nameBuf = new byte[maxKeyLen + 2];
-        int nameBufLen = 0;
+        var collections = BuildCollectionLookup(options.TargetCollections);
+        var shouldBufferObject = ShouldBufferObject(options);
+        var chunkSize = Math.Max(16, options.BufferSize);
+        byte[] chunk = ArrayPool<byte>.Shared.Rent(chunkSize);
+        var utf8Validator = options.ValidateUtf8 ? new StreamingUtf8Validator() : null;
+        var stringTokenBytes = new List<byte>(64);
 
-        for (int i = 0; i < length; i++)
+        Channel<ObjectWorkItem>? channel = null;
+        Task[] workers = [];
+        Exception? scanFailure = null;
+
+        try
         {
-            byte b = bytes[i];
-
-            if (foundCollectionName == null)
+            if (options.ParallelProcessing)
             {
-                if (nameBufLen < nameBuf.Length)
-                    nameBuf[nameBufLen++] = b;
+                int workerCount = Math.Max(1, Environment.ProcessorCount - 1);
+                if (metadata != null) metadata.ParallelWorkers = workerCount;
+
+                channel = Channel.CreateBounded<ObjectWorkItem>(new BoundedChannelOptions(workerCount * 4)
+                {
+                    SingleWriter = true,
+                    SingleReader = false,
+                    FullMode = BoundedChannelFullMode.Wait
+                });
+
+                workers = Enumerable.Range(0, workerCount).Select(_ => Task.Run(async () =>
+                {
+                    await foreach (var workItem in channel.Reader.ReadAllAsync())
+                    {
+                        var processed = ProcessCompletedObject(workItem, options, errors);
+                        if (processed != null)
+                            processor(workItem.CollectionName, processed);
+                    }
+                })).ToArray();
+            }
+
+            long absoluteOffset = 0;
+            int arrayDepth = 0;
+            int activeCollectionArrayDepth = -1;
+            int itemIndex = -1;
+            bool inString = false;
+            bool escape = false;
+            bool captureStringToken = false;
+            bool pendingStringToken = false;
+            bool awaitingArrayValue = false;
+            string? lastCompletedString = null;
+            string? pendingPropertyName = null;
+            string? activeCollectionName = null;
+            ActiveObjectCapture? currentObject = null;
+
+            int bytesRead;
+            while ((bytesRead = await stream.ReadAsync(chunk.AsMemory(0, chunkSize))) > 0)
+            {
+                if (metadata != null) metadata.BytesProcessed += bytesRead;
+                utf8Validator?.Validate(chunk.AsSpan(0, bytesRead), flush: false);
+
+                for (int i = 0; i < bytesRead; i++)
+                {
+                    byte b = chunk[i];
+                    long position = absoluteOffset++;
+
+                    if (currentObject != null)
+                        currentObject.Append(b, options.MaxObjectSize);
+
+                    if (inString)
+                    {
+                        if (escape)
+                        {
+                            escape = false;
+                            if (captureStringToken) stringTokenBytes.Add(b);
+                            continue;
+                        }
+
+                        if (b == ByteBackslash)
+                        {
+                            escape = true;
+                            if (captureStringToken) stringTokenBytes.Add(b);
+                            continue;
+                        }
+
+                        if (b == ByteQuote)
+                        {
+                            inString = false;
+                            if (captureStringToken)
+                            {
+                                lastCompletedString = Encoding.UTF8.GetString(stringTokenBytes.ToArray());
+                                stringTokenBytes.Clear();
+                                pendingStringToken = true;
+                            }
+
+                            continue;
+                        }
+
+                        if (captureStringToken) stringTokenBytes.Add(b);
+                        continue;
+                    }
+
+                    if (char.IsWhiteSpace((char)b))
+                        continue;
+
+                    if (activeCollectionName == null)
+                    {
+                        if (awaitingArrayValue)
+                        {
+                            if (b == ByteOpenBracket)
+                            {
+                                arrayDepth++;
+                                if (pendingPropertyName != null && collections.TryGetValue(pendingPropertyName, out var matchedCollection))
+                                {
+                                    activeCollectionName = matchedCollection;
+                                    activeCollectionArrayDepth = arrayDepth;
+                                    itemIndex = -1;
+                                    Log($"Found collection: {activeCollectionName}");
+                                }
+
+                                awaitingArrayValue = false;
+                                pendingPropertyName = null;
+                                pendingStringToken = false;
+                                lastCompletedString = null;
+                                continue;
+                            }
+
+                            awaitingArrayValue = false;
+                            pendingPropertyName = null;
+                        }
+
+                        if (pendingStringToken)
+                        {
+                            if (b == (byte)':')
+                            {
+                                pendingPropertyName = lastCompletedString;
+                                awaitingArrayValue = true;
+                                pendingStringToken = false;
+                                lastCompletedString = null;
+                                continue;
+                            }
+
+                            pendingStringToken = false;
+                            lastCompletedString = null;
+                        }
+                    }
+
+                    if (b == ByteQuote)
+                    {
+                        inString = true;
+                        escape = false;
+                        captureStringToken = activeCollectionName == null;
+                        if (captureStringToken) stringTokenBytes.Clear();
+                        continue;
+                    }
+
+                    switch (b)
+                    {
+                        case ByteOpenBracket:
+                            arrayDepth++;
+                            break;
+
+                        case ByteOpenBrace:
+                            if (activeCollectionName != null)
+                            {
+                                if (currentObject == null)
+                                {
+                                    currentObject = new ActiveObjectCapture(
+                                        new JsonObjectRange
+                                        {
+                                            StartPosition = position,
+                                            ItemIndex = itemIndex + 1,
+                                            ObjectType = activeCollectionName
+                                        },
+                                        shouldBufferObject);
+                                    currentObject.Append(ByteOpenBrace, options.MaxObjectSize);
+                                }
+                                else
+                                {
+                                    currentObject.Depth++;
+                                }
+                            }
+                            break;
+
+                        case ByteCloseBrace:
+                            if (currentObject != null)
+                            {
+                                currentObject.Depth--;
+                                if (currentObject.Depth == 0)
+                                {
+                                    itemIndex++;
+                                    var workItem = currentObject.ToWorkItem(activeCollectionName!);
+                                    currentObject = null;
+
+                                    if (channel != null)
+                                        await channel.Writer.WriteAsync(workItem);
+                                    else
+                                    {
+                                        var processed = ProcessCompletedObject(workItem, options, errors);
+                                        if (processed != null)
+                                            processor(workItem.CollectionName, processed);
+                                    }
+                                }
+                            }
+                            break;
+
+                        case ByteCloseBracket:
+                            if (activeCollectionName != null && currentObject == null && arrayDepth == activeCollectionArrayDepth)
+                            {
+                                activeCollectionName = null;
+                                activeCollectionArrayDepth = -1;
+                                itemIndex = -1;
+                            }
+
+                            if (arrayDepth > 0) arrayDepth--;
+                            break;
+                    }
+                }
+            }
+
+            utf8Validator?.Validate(ReadOnlySpan<byte>.Empty, flush: true);
+
+            if (currentObject != null)
+            {
+                currentObject.Range.Error = "Stream ended before JSON object was closed.";
+                if (options.ContinueOnError)
+                    processor(activeCollectionName ?? currentObject.Range.ObjectType ?? "unknown", currentObject.Range);
                 else
-                {
-                    Array.Copy(nameBuf, 1, nameBuf, 0, nameBuf.Length - 1);
-                    nameBuf[^1] = b;
-                }
-
-                string bufStr = Encoding.UTF8.GetString(nameBuf, 0, nameBufLen).ToLowerInvariant();
-                for (int k = 0; k < searchKeys.Length; k++)
-                {
-                    if (bufStr.EndsWith(searchKeys[k], StringComparison.Ordinal))
-                    {
-                        foundCollectionName = collections[k];
-                        nameBufLen = 0;
-                        Log($"Found collection: {foundCollectionName}");
-                        break;
-                    }
-                }
-                continue;
-            }
-
-            bool isEscape = false;
-            if (b == ByteBackslash) { negate = !negate; isEscape = true; }
-
-            if (b == ByteQuote && !negate)
-            {
-                inQuote = !inQuote;
-                if (!isEscape) negate = false;
-                continue;
-            }
-
-            if (!isEscape) negate = false;
-            if (inQuote) continue;
-
-            switch (b)
-            {
-                case ByteOpenBrace:
-                    braceCount++;
-                    if (braceCount == 1)
-                        currentObject = new JsonObjectRange { StartPosition = i, ItemIndex = itemIndex + 1 };
-                    break;
-
-                case ByteCloseBrace:
-                    braceCount--;
-                    if (braceCount == 0 && currentObject != null)
-                    {
-                        itemIndex++;
-                        ProcessFoundObject(currentObject, bytes, i, options, foundCollectionName, collectionItems, errors);
-                        currentObject = null;
-                    }
-                    break;
-
-                case ByteCloseBracket:
-                    if (braceCount == 0)
-                    {
-                        foundCollectionName = null;
-                        nameBufLen = 0;
-                        itemIndex = -1;
-                    }
-                    break;
+                    errors?.Add($"Incomplete JSON object starting at position {currentObject.Range.StartPosition}.");
             }
         }
-
-        return collectionItems.ToDictionary(
-            kvp => kvp.Key,
-            kvp => kvp.Value.ToArray(),
-            StringComparer.OrdinalIgnoreCase);
-    }
-
-    // ── Parallel scan (Channel<T> producer/consumer) ─────────────────────────
-
-    private async Task<Dictionary<string, JsonObjectRange[]>> ScanForCollectionsParallel(
-        byte[] bytes, int length, JsonScanOptions options, List<string> errors, ScanMetadata metadata)
-    {
-        int workerCount = Math.Max(1, Environment.ProcessorCount - 1);
-        metadata.ParallelWorkers = workerCount;
-
-        // Channel: producer (byte scanner) → consumers (object processors)
-        var channel = Channel.CreateBounded<(JsonObjectRange range, string collectionName, int start, int len)>(
-            new BoundedChannelOptions(workerCount * 4)
-            {
-                SingleWriter = true,
-                SingleReader = false,
-                FullMode = BoundedChannelFullMode.Wait
-            });
-
-        var concurrentResults = new ConcurrentDictionary<string, ConcurrentBag<JsonObjectRange>>(StringComparer.OrdinalIgnoreCase);
-        var concurrentErrors = new ConcurrentBag<string>();
-
-        // Start consumer workers
-        var workers = Enumerable.Range(0, workerCount).Select(_ => Task.Run(async () =>
+        catch (Exception ex)
         {
-            await foreach (var (range, collectionName, start, len) in channel.Reader.ReadAllAsync())
-            {
-                ProcessFoundObjectParallel(range, bytes, start, len, options, collectionName, concurrentResults, concurrentErrors);
-            }
-        })).ToArray();
-
-        // Producer: sequential byte scan
-        string[] collections = options.TargetCollections ?? await DetectCollections(bytes, length);
-        var searchKeys = collections.Select(c => $"\"{c.ToLowerInvariant()}\"").ToArray();
-        int maxKeyLen = searchKeys.Length > 0 ? searchKeys.Max(k => k.Length) : 50;
-
-        bool negate = false, inQuote = false;
-        int braceCount = 0;
-        string? foundCollectionName = null;
-        JsonObjectRange? currentObject = null;
-        int itemIndex = -1;
-        var nameBuf = new byte[maxKeyLen + 2];
-        int nameBufLen = 0;
-
-        for (int i = 0; i < length; i++)
+            scanFailure = ex;
+            throw;
+        }
+        finally
         {
-            byte b = bytes[i];
+            ArrayPool<byte>.Shared.Return(chunk);
 
-            if (foundCollectionName == null)
+            if (channel != null)
             {
-                if (nameBufLen < nameBuf.Length) nameBuf[nameBufLen++] = b;
-                else { Array.Copy(nameBuf, 1, nameBuf, 0, nameBuf.Length - 1); nameBuf[^1] = b; }
-
-                string bufStr = Encoding.UTF8.GetString(nameBuf, 0, nameBufLen).ToLowerInvariant();
-                for (int k = 0; k < searchKeys.Length; k++)
-                {
-                    if (bufStr.EndsWith(searchKeys[k], StringComparison.Ordinal))
-                    {
-                        foundCollectionName = collections[k];
-                        nameBufLen = 0;
-                        break;
-                    }
-                }
-                continue;
-            }
-
-            bool isEscape = false;
-            if (b == ByteBackslash) { negate = !negate; isEscape = true; }
-            if (b == ByteQuote && !negate) { inQuote = !inQuote; if (!isEscape) negate = false; continue; }
-            if (!isEscape) negate = false;
-            if (inQuote) continue;
-
-            switch (b)
-            {
-                case ByteOpenBrace:
-                    braceCount++;
-                    if (braceCount == 1)
-                        currentObject = new JsonObjectRange { StartPosition = i, ItemIndex = itemIndex + 1 };
-                    break;
-
-                case ByteCloseBrace:
-                    braceCount--;
-                    if (braceCount == 0 && currentObject != null)
-                    {
-                        itemIndex++;
-                        int start = (int)currentObject.StartPosition;
-                        int len = i - start + 1;
-                        currentObject.Length = len;
-                        await channel.Writer.WriteAsync((currentObject, foundCollectionName, start, len));
-                        currentObject = null;
-                    }
-                    break;
-
-                case ByteCloseBracket:
-                    if (braceCount == 0) { foundCollectionName = null; nameBufLen = 0; itemIndex = -1; }
-                    break;
+                channel.Writer.TryComplete(scanFailure);
+                await Task.WhenAll(workers);
             }
         }
-
-        channel.Writer.Complete();
-        await Task.WhenAll(workers);
-
-        // Merge concurrent errors
-        foreach (var e in concurrentErrors) errors.Add(e);
-
-        return concurrentResults.ToDictionary(
-            kvp => kvp.Key,
-            kvp => kvp.Value.OrderBy(r => r.ItemIndex).ToArray(),
-            StringComparer.OrdinalIgnoreCase);
     }
 
-    // ── Object processing (sequential) ───────────────────────────────────────
+    // ── Object processing ────────────────────────────────────────────────────
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ProcessFoundObject(
-        JsonObjectRange objectRange, byte[] bytes, int endIndex,
-        JsonScanOptions options, string collectionName,
-        Dictionary<string, List<JsonObjectRange>> collectionItems,
-        List<string> errors)
+    private JsonObjectRange? ProcessCompletedObject(
+        ObjectWorkItem workItem,
+        JsonScanOptions options,
+        ConcurrentBag<string>? errors)
     {
+        var objectRange = workItem.Range;
+
         try
         {
-            objectRange.Length = endIndex - objectRange.StartPosition + 1;
-
-            if (objectRange.Length > options.MaxObjectSize)
+            if (workItem.ExceededMaxSize || objectRange.Length > options.MaxObjectSize)
             {
                 objectRange.Error = $"Object size ({objectRange.Length}) exceeds maximum ({options.MaxObjectSize})";
-                if (!options.ContinueOnError) return;
+                return options.ContinueOnError ? objectRange : null;
             }
 
-            int start = (int)objectRange.StartPosition;
-            int len = (int)objectRange.Length;
-            string text = Encoding.UTF8.GetString(bytes, start, len);
+            string? text = null;
+            if (workItem.Bytes != null)
+                text = Encoding.UTF8.GetString(workItem.Bytes);
 
-            if (options.IncludeJsonContent) objectRange.JsonContent = text;
-            if (options.CalculateHashes) objectRange.Hash = ComputeMd5HexFromArray(bytes, start, len);
+            if (options.IncludeJsonContent)
+                objectRange.JsonContent = text;
+
+            if (options.CalculateHashes && workItem.Bytes != null)
+                objectRange.Hash = ComputeMd5Hex(workItem.Bytes);
 
             if (options.PropertyExtractor != null)
             {
-                try { objectRange.Properties = options.PropertyExtractor(text); }
+                try
+                {
+                    objectRange.Properties = options.PropertyExtractor(text ?? string.Empty);
+                }
                 catch (Exception ex)
                 {
                     objectRange.Error = $"Property extraction failed: {ex.Message}";
-                    if (!options.ContinueOnError) return;
+                    return options.ContinueOnError ? objectRange : null;
                 }
             }
 
-            if (!options.SkipStructureValidation && !_validator.IsValidJsonStructure(text))
+            if (!options.SkipStructureValidation)
             {
-                objectRange.Error = "Invalid JSON structure";
-                if (!options.ContinueOnError) return;
+                if (text == null || !_validator.IsValidJsonStructure(text))
+                {
+                    objectRange.Error = "Invalid JSON structure";
+                    return options.ContinueOnError ? objectRange : null;
+                }
             }
 
-            if (!collectionItems.TryGetValue(collectionName, out var list))
-            {
-                list = new List<JsonObjectRange>();
-                collectionItems[collectionName] = list;
-            }
-            list.Add(objectRange);
+            return objectRange;
         }
         catch (Exception ex)
         {
             objectRange.Error = ex.Message;
-            errors.Add($"Error processing object at position {objectRange.StartPosition}: {ex.Message}");
-            if (options.ContinueOnError)
-            {
-                if (!collectionItems.ContainsKey(collectionName))
-                    collectionItems[collectionName] = new List<JsonObjectRange>();
-                collectionItems[collectionName].Add(objectRange);
-            }
-        }
-    }
-
-    // ── Object processing (parallel worker) ──────────────────────────────────
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ProcessFoundObjectParallel(
-        JsonObjectRange objectRange, byte[] bytes, int start, int len,
-        JsonScanOptions options, string collectionName,
-        ConcurrentDictionary<string, ConcurrentBag<JsonObjectRange>> results,
-        ConcurrentBag<string> errors)
-    {
-        try
-        {
-            if (objectRange.Length > options.MaxObjectSize)
-            {
-                objectRange.Error = $"Object size ({objectRange.Length}) exceeds maximum ({options.MaxObjectSize})";
-                if (!options.ContinueOnError) return;
-            }
-
-            string text = Encoding.UTF8.GetString(bytes, start, len);
-
-            if (options.IncludeJsonContent) objectRange.JsonContent = text;
-            if (options.CalculateHashes) objectRange.Hash = ComputeMd5HexFromArray(bytes, start, len);
-
-            if (options.PropertyExtractor != null)
-            {
-                try { objectRange.Properties = options.PropertyExtractor(text); }
-                catch (Exception ex)
-                {
-                    objectRange.Error = $"Property extraction failed: {ex.Message}";
-                    if (!options.ContinueOnError) return;
-                }
-            }
-
-            if (!options.SkipStructureValidation && !_validator.IsValidJsonStructure(text))
-            {
-                objectRange.Error = "Invalid JSON structure";
-                if (!options.ContinueOnError) return;
-            }
-
-            results.GetOrAdd(collectionName, _ => new ConcurrentBag<JsonObjectRange>()).Add(objectRange);
-        }
-        catch (Exception ex)
-        {
-            objectRange.Error = ex.Message;
-            errors.Add($"Error processing object at position {objectRange.StartPosition}: {ex.Message}");
-            if (options.ContinueOnError)
-                results.GetOrAdd(collectionName, _ => new ConcurrentBag<JsonObjectRange>()).Add(objectRange);
+            errors?.Add($"Error processing object at position {objectRange.StartPosition}: {ex.Message}");
+            return options.ContinueOnError ? objectRange : null;
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static async Task<string[]> DetectCollections(byte[] bytes, int length)
+    private static Dictionary<string, string> BuildCollectionLookup(string[]? collections)
     {
-        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string[] candidates = ["items", "data", "results", "products", "records", "entries", "list", "array"];
-        string text = Encoding.UTF8.GetString(bytes, 0, length).ToLowerInvariant();
-        foreach (string c in candidates)
-            if (text.Contains($"\"{c}\"", StringComparison.Ordinal))
-                found.Add(c);
-        return await Task.FromResult(found.ToArray());
+        var values = collections is { Length: > 0 } ? collections : DefaultCollectionCandidates;
+        return values.ToDictionary(value => value, value => value, StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>Computes an MD5 hex string from a segment of a byte array.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static string ComputeMd5HexFromArray(byte[] data, int offset, int count)
+    private static bool ShouldBufferObject(JsonScanOptions options)
     {
-        using var md5 = MD5.Create();
-        byte[] hash = md5.ComputeHash(data, offset, count);
+        return options.IncludeJsonContent
+            || options.CalculateHashes
+            || options.PropertyExtractor != null
+            || !options.SkipStructureValidation;
+    }
+
+    /// <summary>Computes an MD5 hex string for a byte array.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static string ComputeMd5Hex(byte[] data)
+    {
+        Span<byte> hash = stackalloc byte[16];
+        MD5.HashData(data, hash);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private void Log(string message) => _logger?.LogInformation("{Message}", message);
+
+    private sealed class ActiveObjectCapture
+    {
+        private readonly ArrayBufferWriter<byte>? _buffer;
+        private readonly bool _captureBytes;
+
+        public ActiveObjectCapture(JsonObjectRange range, bool captureBytes)
+        {
+            Range = range;
+            Depth = 1;
+            _captureBytes = captureBytes;
+            _buffer = captureBytes ? new ArrayBufferWriter<byte>() : null;
+        }
+
+        public JsonObjectRange Range { get; }
+
+        public int Depth { get; set; }
+
+        public long Length { get; private set; }
+
+        public bool ExceededMaxSize { get; private set; }
+
+        public void Append(byte value, long maxObjectSize)
+        {
+            Length++;
+            if (Length > maxObjectSize)
+            {
+                ExceededMaxSize = true;
+                return;
+            }
+
+            if (!_captureBytes) return;
+
+            var span = _buffer!.GetSpan(1);
+            span[0] = value;
+            _buffer.Advance(1);
+        }
+
+        public ObjectWorkItem ToWorkItem(string collectionName)
+        {
+            Range.Length = Length;
+            return new ObjectWorkItem
+            {
+                CollectionName = collectionName,
+                Range = Range,
+                ExceededMaxSize = ExceededMaxSize,
+                Bytes = _captureBytes && !ExceededMaxSize ? _buffer!.WrittenSpan.ToArray() : null
+            };
+        }
+    }
+
+    private sealed class ObjectWorkItem
+    {
+        public required string CollectionName { get; init; }
+
+        public required JsonObjectRange Range { get; init; }
+
+        public required bool ExceededMaxSize { get; init; }
+
+        public byte[]? Bytes { get; init; }
+    }
+
+    private sealed class StreamingUtf8Validator
+    {
+        private readonly Decoder _decoder = StrictUtf8.GetDecoder();
+        private readonly char[] _chars = new char[1024];
+
+        public void Validate(ReadOnlySpan<byte> bytes, bool flush)
+        {
+            while (!bytes.IsEmpty || flush)
+            {
+                _decoder.Convert(bytes, _chars, flush, out int bytesUsed, out _, out bool completed);
+                bytes = bytes[bytesUsed..];
+                if (completed) break;
+            }
+        }
+    }
 }

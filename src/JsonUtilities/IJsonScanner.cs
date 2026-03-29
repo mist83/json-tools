@@ -28,4 +28,13 @@ public interface IJsonScanner
     /// <param name="options">Scan configuration options.</param>
     /// <returns>A <see cref="JsonScanResult"/> containing all found collections and metadata.</returns>
     Task<JsonScanResult> ScanAsync(Stream stream, JsonScanOptions options);
+
+    /// <summary>
+    /// Processes a JSON stream incrementally, invoking a callback for each discovered object
+    /// in the requested collections.
+    /// </summary>
+    /// <param name="stream">A readable stream containing JSON content.</param>
+    /// <param name="processor">Callback invoked with the collection name and discovered object range.</param>
+    /// <param name="options">Scan configuration options.</param>
+    Task ProcessStreamAsync(Stream stream, System.Action<string, JsonObjectRange> processor, JsonScanOptions options);
 }

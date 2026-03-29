@@ -309,6 +309,74 @@ public class ByteRangeScannerTests
         result.Collections["items"].All(o => o.Properties != null).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task ScanAsync_NonSeekableStream_ExtractsAcrossChunkBoundaries()
+    {
+        const string json = @"{""items"":[{""id"":1,""name"":""alpha""},{""id"":2,""name"":""escaped \""quote\""""},{""id"":3,""name"":""omega""}]}";
+        using var stream = Helpers.ToNonSeekableStream(json, chunkSize: 5);
+
+        var result = await _scanner.ScanAsync(stream, new JsonScanOptions
+        {
+            TargetCollections = ["items"],
+            IncludeJsonContent = true,
+            CalculateHashes = true,
+            ValidateUtf8 = false,
+            BufferSize = 5
+        });
+
+        result.HasErrors.Should().BeFalse();
+        result.Collections["items"].Should().HaveCount(3);
+        result.Collections["items"].Select(o => o.ItemIndex).Should().Equal(0, 1, 2);
+        result.Collections["items"].All(o => o.Hash != null).Should().BeTrue();
+        result.Collections["items"][1].JsonContent.Should().Contain("escaped");
+    }
+
+    [Fact]
+    public async Task ProcessStreamAsync_NonSeekableStream_ProcessesObjectsIncrementally()
+    {
+        const string json = @"{""items"":[{""id"":1},{""id"":2},{""id"":3}],""products"":[{""id"":4}]}";
+        using var stream = Helpers.ToNonSeekableStream(json, chunkSize: 4);
+        var seen = new System.Collections.Generic.List<(string Collection, int Index, string? Json)>();
+
+        await _scanner.ProcessStreamAsync(stream, (collection, obj) =>
+        {
+            seen.Add((collection, obj.ItemIndex, obj.JsonContent));
+        }, new JsonScanOptions
+        {
+            TargetCollections = ["items", "products"],
+            IncludeJsonContent = true,
+            CalculateHashes = false,
+            ValidateUtf8 = false,
+            BufferSize = 4
+        });
+
+        seen.Should().HaveCount(4);
+        seen.Select(x => x.Collection).Should().Equal("items", "items", "items", "products");
+        seen.Select(x => x.Index).Should().Equal(0, 1, 2, 0);
+        seen[0].Json.Should().Be(@"{""id"":1}");
+        seen[3].Json.Should().Be(@"{""id"":4}");
+    }
+
+    [Fact]
+    public async Task ScanAsync_NonSeekableStream_WithUtf8Validation_HandlesUnicodeAcrossChunks()
+    {
+        const string json = @"{""items"":[{""id"":1,""name"":""日本語""},{""id"":2,""name"":""café""}]}";
+        using var stream = Helpers.ToNonSeekableStream(json, chunkSize: 3);
+
+        var result = await _scanner.ScanAsync(stream, new JsonScanOptions
+        {
+            TargetCollections = ["items"],
+            IncludeJsonContent = true,
+            CalculateHashes = false,
+            BufferSize = 3
+        });
+
+        result.HasErrors.Should().BeFalse();
+        result.Collections["items"].Should().HaveCount(2);
+        result.Collections["items"][0].JsonContent.Should().Contain("日本語");
+        result.Collections["items"][1].JsonContent.Should().Contain("café");
+    }
+
     // ── Parallel processing ───────────────────────────────────────────────────
 
     [Fact]

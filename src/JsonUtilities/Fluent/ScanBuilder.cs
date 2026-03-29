@@ -100,4 +100,14 @@ public sealed class ScanBuilder
         var scanner = new GenericByteRangeScanner();
         return scanner.ScanAsync(_stream, _options);
     }
+
+    /// <summary>
+    /// Processes the stream incrementally, invoking <paramref name="processor"/> for each discovered object.
+    /// Use this overload when you want bounded memory instead of collecting the entire result set first.
+    /// </summary>
+    public Task ProcessAsync(Action<string, JsonObjectRange> processor)
+    {
+        var scanner = new GenericByteRangeScanner();
+        return scanner.ProcessStreamAsync(_stream, processor, _options);
+    }
 }

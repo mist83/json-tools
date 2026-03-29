@@ -52,6 +52,24 @@ public class FluentApiTests
     }
 
     [Fact]
+    public async Task JsonTools_Scan_Stream_ProcessAsync_StreamsObjects()
+    {
+        using var stream = Helpers.ToNonSeekableStream(@"{""items"":[{""id"":1},{""id"":2}]}", chunkSize: 3);
+        var seen = new System.Collections.Generic.List<int>();
+
+        await JsonTools.Scan(stream)
+            .ForCollections("items")
+            .WithContent()
+            .ProcessAsync((collection, obj) =>
+            {
+                collection.Should().Be("items");
+                seen.Add(obj.ItemIndex);
+            });
+
+        seen.Should().Equal(0, 1);
+    }
+
+    [Fact]
     public async Task JsonTools_Scan_FilePath_RunAsync()
     {
         var result = await JsonTools.Scan(Helpers.FixturePath("ecommerce.json"))
