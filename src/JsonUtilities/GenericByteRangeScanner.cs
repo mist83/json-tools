@@ -84,8 +84,12 @@ public class GenericByteRangeScanner : IJsonScanner
                 await ProcessStreamInternalAsync(
                     stream,
                     options,
-                    (collectionName, objectRange) =>
-                        collectionItems.GetOrAdd(collectionName, _ => new ConcurrentBag<JsonObjectRange>()).Add(objectRange),
+                    workItem =>
+                    {
+                        var processed = ProcessCompletedObject(workItem, options, errors);
+                        if (processed != null)
+                            collectionItems.GetOrAdd(workItem.CollectionName, _ => new ConcurrentBag<JsonObjectRange>()).Add(processed);
+                    },
                     metadata,
                     errors);
 
@@ -100,15 +104,18 @@ public class GenericByteRangeScanner : IJsonScanner
                 await ProcessStreamInternalAsync(
                     stream,
                     options,
-                    (collectionName, objectRange) =>
+                    workItem =>
                     {
-                        if (!collectionItems.TryGetValue(collectionName, out var list))
+                        var processed = ProcessCompletedObject(workItem, options, errors);
+                        if (processed == null) return;
+
+                        if (!collectionItems.TryGetValue(workItem.CollectionName, out var list))
                         {
                             list = [];
-                            collectionItems[collectionName] = list;
+                            collectionItems[workItem.CollectionName] = list;
                         }
 
-                        list.Add(objectRange);
+                        list.Add(processed);
                     },
                     metadata,
                     errors);
@@ -151,13 +158,58 @@ public class GenericByteRangeScanner : IJsonScanner
         ArgumentNullException.ThrowIfNull(processor);
         ArgumentNullException.ThrowIfNull(options);
 
-        return ProcessStreamInternalAsync(stream, options, processor, metadata: null, errors: null);
+        return ProcessStreamInternalAsync(
+            stream,
+            options,
+            workItem =>
+            {
+                var processed = ProcessCompletedObject(workItem, options, errors: null);
+                if (processed != null)
+                    processor(workItem.CollectionName, processed);
+            },
+            metadata: null,
+            errors: null);
+    }
+
+    internal Task ProcessBufferedStreamAsync(Stream stream, Action<string, BufferedJsonObject> processor, JsonScanOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(processor);
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (options.ParallelProcessing)
+            throw new NotSupportedException("Buffered object streaming does not support parallel processing.");
+
+        var scanningOptions = CloneOptions(options);
+        scanningOptions.IncludeJsonContent = true;
+
+        return ProcessStreamInternalAsync(
+            stream,
+            scanningOptions,
+            workItem =>
+            {
+                if (workItem.ExceededMaxSize || workItem.Range.Length > scanningOptions.MaxObjectSize)
+                {
+                    if (!scanningOptions.ContinueOnError)
+                        throw new InvalidOperationException($"Object size ({workItem.Range.Length}) exceeds maximum ({scanningOptions.MaxObjectSize})");
+                    return;
+                }
+
+                processor(workItem.CollectionName, new BufferedJsonObject(
+                    workItem.Range.StartPosition,
+                    workItem.Range.Length,
+                    workItem.Range.ItemIndex,
+                    workItem.Range.ObjectType,
+                    workItem.Bytes));
+            },
+            metadata: null,
+            errors: null);
     }
 
     private async Task ProcessStreamInternalAsync(
         Stream stream,
         JsonScanOptions options,
-        Action<string, JsonObjectRange> processor,
+        Action<ObjectWorkItem> workItemProcessor,
         ScanMetadata? metadata,
         ConcurrentBag<string>? errors)
     {
@@ -192,11 +244,7 @@ public class GenericByteRangeScanner : IJsonScanner
                 workers = Enumerable.Range(0, workerCount).Select(_ => Task.Run(async () =>
                 {
                     await foreach (var workItem in channel.Reader.ReadAllAsync())
-                    {
-                        var processed = ProcessCompletedObject(workItem, options, errors);
-                        if (processed != null)
-                            processor(workItem.CollectionName, processed);
-                    }
+                        workItemProcessor(workItem);
                 })).ToArray();
             }
 
@@ -356,11 +404,7 @@ public class GenericByteRangeScanner : IJsonScanner
                                     if (channel != null)
                                         await channel.Writer.WriteAsync(workItem);
                                     else
-                                    {
-                                        var processed = ProcessCompletedObject(workItem, options, errors);
-                                        if (processed != null)
-                                            processor(workItem.CollectionName, processed);
-                                    }
+                                        workItemProcessor(workItem);
                                 }
                             }
                             break;
@@ -385,7 +429,14 @@ public class GenericByteRangeScanner : IJsonScanner
             {
                 currentObject.Range.Error = "Stream ended before JSON object was closed.";
                 if (options.ContinueOnError)
-                    processor(activeCollectionName ?? currentObject.Range.ObjectType ?? "unknown", currentObject.Range);
+                {
+                    workItemProcessor(new ObjectWorkItem
+                    {
+                        CollectionName = activeCollectionName ?? currentObject.Range.ObjectType ?? "unknown",
+                        Range = currentObject.Range,
+                        ExceededMaxSize = currentObject.ExceededMaxSize
+                    });
+                }
                 else
                     errors?.Add($"Incomplete JSON object starting at position {currentObject.Range.StartPosition}.");
             }
@@ -425,14 +476,15 @@ public class GenericByteRangeScanner : IJsonScanner
             }
 
             string? text = null;
-            if (workItem.Bytes != null)
-                text = Encoding.UTF8.GetString(workItem.Bytes);
+            var bytes = workItem.Bytes;
+            if (!bytes.IsEmpty)
+                text = Encoding.UTF8.GetString(bytes.Span);
 
             if (options.IncludeJsonContent)
                 objectRange.JsonContent = text;
 
-            if (options.CalculateHashes && workItem.Bytes != null)
-                objectRange.Hash = ComputeMd5Hex(workItem.Bytes);
+            if (options.CalculateHashes && !bytes.IsEmpty)
+                objectRange.Hash = ComputeMd5Hex(bytes.Span);
 
             if (options.PropertyExtractor != null)
             {
@@ -482,9 +534,26 @@ public class GenericByteRangeScanner : IJsonScanner
             || !options.SkipStructureValidation;
     }
 
+    private static JsonScanOptions CloneOptions(JsonScanOptions options)
+    {
+        return new JsonScanOptions
+        {
+            TargetCollections = options.TargetCollections,
+            ValidateUtf8 = options.ValidateUtf8,
+            CalculateHashes = options.CalculateHashes,
+            PropertyExtractor = options.PropertyExtractor,
+            MaxObjectSize = options.MaxObjectSize,
+            IncludeJsonContent = options.IncludeJsonContent,
+            BufferSize = options.BufferSize,
+            ContinueOnError = options.ContinueOnError,
+            ParallelProcessing = options.ParallelProcessing,
+            SkipStructureValidation = options.SkipStructureValidation
+        };
+    }
+
     /// <summary>Computes an MD5 hex string for a byte array.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static string ComputeMd5Hex(byte[] data)
+    private static string ComputeMd5Hex(ReadOnlySpan<byte> data)
     {
         Span<byte> hash = stackalloc byte[16];
         MD5.HashData(data, hash);
@@ -538,7 +607,7 @@ public class GenericByteRangeScanner : IJsonScanner
                 CollectionName = collectionName,
                 Range = Range,
                 ExceededMaxSize = ExceededMaxSize,
-                Bytes = _captureBytes && !ExceededMaxSize ? _buffer!.WrittenSpan.ToArray() : null
+                Buffer = _captureBytes && !ExceededMaxSize ? _buffer : null
             };
         }
     }
@@ -551,8 +620,17 @@ public class GenericByteRangeScanner : IJsonScanner
 
         public required bool ExceededMaxSize { get; init; }
 
-        public byte[]? Bytes { get; init; }
+        public ArrayBufferWriter<byte>? Buffer { get; init; }
+
+        public ReadOnlyMemory<byte> Bytes => Buffer?.WrittenMemory ?? ReadOnlyMemory<byte>.Empty;
     }
+
+    internal readonly record struct BufferedJsonObject(
+        long StartPosition,
+        long Length,
+        int ItemIndex,
+        string? ObjectType,
+        ReadOnlyMemory<byte> Bytes);
 
     private sealed class StreamingUtf8Validator
     {

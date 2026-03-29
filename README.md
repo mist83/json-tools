@@ -174,7 +174,7 @@ src/
       SemanticController      # POST /api/semantic/search
 
 tests/
-  JsonUtilities.Tests/        # 115 xUnit tests
+  JsonUtilities.Tests/        # 116 xUnit tests
     ByteRangeScannerTests     # ~25 cases: extraction, positions, hashing, edge cases
     JsonPathScannerTests      # ~18 cases: nested paths, strict mode, byte accuracy
     TrieTests                 # ~17 cases: insert, search, prefix, unicode, large dataset
@@ -226,7 +226,7 @@ For the next step, including the exact project scaffold, contract-sharing plan, 
 - `StringComparer.OrdinalIgnoreCase` on collection dictionaries
 - `MethodImpl(AggressiveInlining)` on hot paths
 - `FileStream` with `useAsync: true` and `FileShare.Read`
-- Semantic index benchmarks are now tracked in-repo; the latest local sample built 10,000 synthetic items in ~79 ms and searched offsets in ~143 us on an Apple M4. See [docs/performance/README.md](docs/performance/README.md).
+- Semantic and path benchmarks are now tracked in-repo; the latest local sample built a 10,000-item semantic index in ~57 ms, searched offsets in ~147 us, and processed a 10,000-item nested path in ~9.26 ms on an Apple M4. See [docs/performance/README.md](docs/performance/README.md).
 
 For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performance/README.md](docs/performance/README.md).
 
@@ -234,7 +234,7 @@ For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performa
 
 ```bash
 dotnet test
-# Passed! - Failed: 0, Passed: 115, Skipped: 0
+# Passed! - Failed: 0, Passed: 116, Skipped: 0
 ```
 
 ```bash

@@ -40,6 +40,30 @@ public class SemanticIndexTests
     }
 
     [Fact]
+    public async Task SemanticIndex_BuildFromNonSeekableStream_Works()
+    {
+        const string json = """
+            {
+              "items": [
+                { "title": "alpha streaming", "description": "first object" },
+                { "title": "beta analytics", "description": "second object" }
+              ]
+            }
+            """;
+
+        using var stream = Helpers.ToNonSeekableStream(json, chunkSize: 5);
+        var builder = new SemanticIndexBuilder(new SemanticIndexOptions
+        {
+            IndexedFields = ["title"],
+            CollectionPaths = ["items"]
+        });
+
+        var index = await builder.BuildAsync(stream);
+        index.Search("stream").Should().ContainSingle();
+        index.Search("analytics").Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task SemanticIndex_Search_CastMember_ReturnsCorrectOffsets()
     {
         using var stream = Helpers.LoadFixture("catalog.json");

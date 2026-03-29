@@ -27,6 +27,7 @@ namespace JsonUtilities.Indexing;
 public class SemanticIndexBuilder
 {
     private readonly SemanticIndexOptions _options;
+    private readonly HashSet<string>? _indexedFieldsLookup;
 
     /// <summary>
     /// Initializes a new <see cref="SemanticIndexBuilder"/> with the specified options.
@@ -35,6 +36,8 @@ public class SemanticIndexBuilder
     public SemanticIndexBuilder(SemanticIndexOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        if (_options.IndexedFields.Length > 0)
+            _indexedFieldsLookup = new HashSet<string>(_options.IndexedFields, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -61,48 +64,35 @@ public class SemanticIndexBuilder
         var scanOptions = new JsonScanOptions
         {
             TargetCollections = _options.CollectionPaths.Length > 0 ? _options.CollectionPaths : null,
-            IncludeJsonContent = true,
+            IncludeJsonContent = false,
             CalculateHashes = false,
             ValidateUtf8 = false,
             SkipStructureValidation = true,
             ContinueOnError = true
         };
 
-        await scanner.ProcessStreamAsync(stream, (_, obj) =>
+        await scanner.ProcessBufferedStreamAsync(stream, (_, obj) =>
         {
-            if (obj.JsonContent == null) return;
-            IndexObject(obj.StartPosition, obj.JsonContent, index);
+            if (obj.Bytes.IsEmpty) return;
+            IndexObject(obj.StartPosition, obj.Bytes, index);
         }, scanOptions);
 
         return index;
     }
 
-    private void IndexObject(long byteOffset, string jsonText, JsonIndex index)
+    private void IndexObject(long byteOffset, ReadOnlyMemory<byte> jsonBytes, JsonIndex index)
     {
         try
         {
-            using var doc = JsonDocument.Parse(jsonText);
+            using var doc = JsonDocument.Parse(jsonBytes);
             var root = doc.RootElement;
 
             if (root.ValueKind != JsonValueKind.Object) return;
 
             foreach (var prop in root.EnumerateObject())
             {
-                // Check if this field is in our indexed fields list (case-insensitive)
-                bool shouldIndex = _options.IndexedFields.Length == 0;
-                if (!shouldIndex)
-                {
-                    foreach (var field in _options.IndexedFields)
-                    {
-                        if (string.Equals(prop.Name, field, StringComparison.OrdinalIgnoreCase))
-                        {
-                            shouldIndex = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!shouldIndex) continue;
+                if (_indexedFieldsLookup != null && !_indexedFieldsLookup.Contains(prop.Name))
+                    continue;
 
                 IndexElement(prop.Value, byteOffset, index);
             }
