@@ -141,6 +141,33 @@ public class SemanticIndexTests
     }
 
     [Fact]
+    public async Task SemanticIndex_SearchObjects_Stream_PreservesUtf8Characters()
+    {
+        const string json = """
+            {
+              "items": [
+                { "title": "alpha", "description": "日本語データ" },
+                { "title": "beta", "description": "plain ascii" }
+              ]
+            }
+            """;
+
+        await using var buildStream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        var index = await new SemanticIndexBuilder(new SemanticIndexOptions
+        {
+            IndexedFields = ["title"],
+            CollectionPaths = ["items"]
+        }).BuildAsync(buildStream);
+
+        await using var searchStream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        var objects = index.SearchObjects("alpha", searchStream).ToList();
+
+        objects.Should().ContainSingle();
+        objects[0].Should().Contain("日本語データ");
+        new JsonValidator().IsValidJsonStructure(objects[0]).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task SemanticIndex_NGrams_EnabledAndSearchable()
     {
         using var stream = Helpers.LoadFixture("catalog.json");

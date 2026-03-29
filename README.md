@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mist83/json-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/mist83/json-tools/actions/workflows/ci.yml)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
-[![Tests](https://img.shields.io/badge/tests-105%20passing-brightgreen?logo=xunit)](https://github.com/mist83/json-tools/actions)
+[![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen?logo=xunit)](https://github.com/mist83/json-tools/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 High-performance C# library for scanning large JSON files with byte-position tracking, JSON path extraction, prefix-tree indexing, and semantic keyword search — without full deserialization.
@@ -174,7 +174,7 @@ src/
       SemanticController      # POST /api/semantic/search
 
 tests/
-  JsonUtilities.Tests/        # 116 xUnit tests
+  JsonUtilities.Tests/        # 117 xUnit tests
     ByteRangeScannerTests     # ~25 cases: extraction, positions, hashing, edge cases
     JsonPathScannerTests      # ~18 cases: nested paths, strict mode, byte accuracy
     TrieTests                 # ~17 cases: insert, search, prefix, unicode, large dataset
@@ -226,7 +226,7 @@ For the next step, including the exact project scaffold, contract-sharing plan, 
 - `StringComparer.OrdinalIgnoreCase` on collection dictionaries
 - `MethodImpl(AggressiveInlining)` on hot paths
 - `FileStream` with `useAsync: true` and `FileShare.Read`
-- Semantic and path benchmarks are now tracked in-repo; the latest local sample built a 10,000-item semantic index in ~57 ms, searched offsets in ~147 us, and processed a 10,000-item nested path in ~9.26 ms on an Apple M4. See [docs/performance/README.md](docs/performance/README.md).
+- Semantic and path benchmarks are now tracked in-repo; the latest local sample built a 10,000-item semantic index in ~56 ms, searched offsets in ~164 us, materialized 10,000 matched objects in ~2.47 ms, and processed a 10,000-item nested path in ~9.26 ms on an Apple M4. See [docs/performance/README.md](docs/performance/README.md).
 
 For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performance/README.md](docs/performance/README.md).
 
@@ -234,7 +234,7 @@ For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performa
 
 ```bash
 dotnet test
-# Passed! - Failed: 0, Passed: 116, Skipped: 0
+# Passed! - Failed: 0, Passed: 117, Skipped: 0
 ```
 
 ```bash

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -23,6 +24,10 @@ namespace JsonUtilities.Indexing;
 /// </remarks>
 public class JsonIndex
 {
+    private const byte ByteBackslash = (byte)'\\';
+    private const byte ByteQuote = (byte)'"';
+    private const byte ByteOpenBrace = (byte)'{';
+    private const byte ByteCloseBrace = (byte)'}';
     private readonly Trie<OffsetList> _trie = new();
     private int _termCount;
 
@@ -110,12 +115,11 @@ public class JsonIndex
 
     private static string? ReadJsonObject(Stream stream, int maxSize)
     {
-        // Read bytes until we have a complete JSON object (balanced braces)
         var buf = new byte[Math.Min(maxSize, 4096)];
-        var sb = new StringBuilder();
+        var objectBytes = new ArrayBufferWriter<byte>();
         int depth = 0;
         bool started = false;
-        bool inQuote = false;
+        bool inString = false;
         bool escape = false;
 
         while (true)
@@ -123,26 +127,50 @@ public class JsonIndex
             int bytesRead = stream.Read(buf, 0, buf.Length);
             if (bytesRead == 0) break;
 
+            int appendStart = 0;
             for (int i = 0; i < bytesRead; i++)
             {
-                char c = (char)buf[i];
-                sb.Append(c);
+                byte b = buf[i];
 
-                if (sb.Length > maxSize) return null;
-
-                if (escape) { escape = false; continue; }
-                if (c == '\\') { escape = true; continue; }
-                if (c == '"') { inQuote = !inQuote; continue; }
-                if (inQuote) continue;
-
-                if (c == '{') { depth++; started = true; }
-                else if (c == '}')
+                if (escape)
                 {
-                    depth--;
-                    if (started && depth == 0)
-                        return sb.ToString();
+                    escape = false;
+                }
+                else if (b == ByteBackslash && inString)
+                {
+                    escape = true;
+                }
+                else if (b == ByteQuote)
+                {
+                    inString = !inString;
+                }
+                else if (!inString)
+                {
+                    if (b == ByteOpenBrace)
+                    {
+                        depth++;
+                        started = true;
+                    }
+                    else if (b == ByteCloseBrace)
+                    {
+                        depth--;
+                        if (started && depth == 0)
+                        {
+                            int segmentLength = i - appendStart + 1;
+                            if (objectBytes.WrittenCount + segmentLength > maxSize)
+                                return null;
+
+                            objectBytes.Write(buf.AsSpan(appendStart, segmentLength));
+                            return Encoding.UTF8.GetString(objectBytes.WrittenSpan);
+                        }
+                    }
                 }
             }
+
+            if (objectBytes.WrittenCount + (bytesRead - appendStart) > maxSize)
+                return null;
+
+            objectBytes.Write(buf.AsSpan(appendStart, bytesRead - appendStart));
         }
 
         return null;

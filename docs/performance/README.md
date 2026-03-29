@@ -82,33 +82,40 @@ What that means:
 
 The generated BenchmarkDotNet reports are written to `BenchmarkDotNet.Artifacts/results/`.
 
-Semantic short-run sample from `dotnet run -c Release --project benchmarks/JsonUtilities.Benchmarks -- --filter "*Semantic*"` after moving semantic build onto the streaming scanner path, fixing exact-key trie insertion, and letting the builder parse directly from UTF-8 bytes:
+Semantic short-run sample from `dotnet run -c Release --project benchmarks/JsonUtilities.Benchmarks -- --filter "*Semantic*"` after moving semantic build onto the streaming scanner path, fixing exact-key trie insertion, letting the builder parse directly from UTF-8 bytes, vectorizing separator scans in the tokenizer, and fixing UTF-8-safe object materialization:
 
 | Scenario | 1,000 items | 10,000 items |
 |---|---:|---:|
-| `BuildIndex` | 5.279 ms | 57.053 ms |
-| `SearchOffsets` | 8.887 us | 146.651 us |
-| `SearchObjects` | 314.113 us | 3.119 ms |
+| `BuildIndex` | 4.818 ms | 55.986 ms |
+| `SearchOffsets` | 8.706 us | 164.195 us |
+| `SearchObjects` | 240.699 us | 2.474 ms |
 
 What that means:
 
 - semantic search lookup is fast once the index already exists
-- semantic object materialization is still reasonable on this synthetic dataset, but it is not the same thing as index construction
+- semantic object materialization is still a separate cost from index construction, but it is now both UTF-8-correct and faster than the prior local sample
 - semantic index construction is no longer the runaway hotspot it was earlier in this work
-- the big win came from four cumulative changes:
+- the big win came from five cumulative changes:
   1. semantic build now walks objects incrementally through the byte-range scanner callback path
   2. `JsonIndex` now performs exact-key trie insertions instead of using prefix search during index build
   3. the scanner no longer copies buffered object bytes into a second array before processing
   4. semantic build now parses `JsonDocument` directly from UTF-8 bytes instead of round-tripping through a managed string
+  5. semantic tokenization now uses vectorized separator scans instead of split-heavy string processing
+
+The object-materialization path also got a correctness fix in this pass:
+
+- `SearchObjects(...)` now buffers raw UTF-8 bytes and decodes once at the end, so non-ASCII content survives round-trips from indexed offsets back into JSON strings
 
 Before/after headline deltas from local runs on this machine:
 
 | Metric | Earlier run | Latest run |
 |---|---:|---:|
-| `BuildIndex` 1,000 items | 20.109 ms | 5.279 ms |
-| `BuildIndex` 10,000 items | 1.529 s | 57.053 ms |
-| Managed allocation 1,000 items | 36,665.94 KB | 4,996.26 KB |
-| Managed allocation 10,000 items | 2,820,715.22 KB | 50,736.90 KB |
+| `BuildIndex` 1,000 items | 20.109 ms | 4.818 ms |
+| `BuildIndex` 10,000 items | 1.529 s | 55.986 ms |
+| `SearchObjects` 1,000 items | 314.113 us | 240.699 us |
+| `SearchObjects` 10,000 items | 3.119 ms | 2.474 ms |
+| Managed allocation 1,000 items | 36,665.94 KB | 4,573.75 KB |
+| Managed allocation 10,000 items | 2,820,715.22 KB | 46,550.04 KB |
 
 Path short-run sample from `dotnet run -c Release --project benchmarks/JsonUtilities.Benchmarks -- --filter "*Path*"` after refactoring `GenericJsonPathScanner` to parse incrementally:
 
@@ -160,5 +167,5 @@ BenchmarkDotNet is great for time and managed allocations, but a separate probe 
 4. Measure object-materialization paths separately from raw scan speed.
 `SearchObjects(...)` and `IncludeJsonContent = true` still allocate by design, so they deserve their own budget and expectations.
 
-5. Reduce tokenization churn inside semantic indexing.
-`IndexText(...)` still splits strings and builds temporary n-gram strings, which is the clearest remaining hot path inside the semantic builder itself.
+5. Reduce object-materialization churn when callers need full JSON strings.
+`SearchObjects(...)` now preserves UTF-8 correctly and is faster than before, but it still allocates because it is intentionally materializing JSON content.

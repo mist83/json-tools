@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -28,6 +29,7 @@ public class SemanticIndexBuilder
 {
     private readonly SemanticIndexOptions _options;
     private readonly HashSet<string>? _indexedFieldsLookup;
+    private readonly SearchValues<char> _wordSeparators;
 
     /// <summary>
     /// Initializes a new <see cref="SemanticIndexBuilder"/> with the specified options.
@@ -36,6 +38,7 @@ public class SemanticIndexBuilder
     public SemanticIndexBuilder(SemanticIndexOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _wordSeparators = SearchValues.Create(_options.WordSeparators);
         if (_options.IndexedFields.Length > 0)
             _indexedFieldsLookup = new HashSet<string>(_options.IndexedFields, StringComparer.OrdinalIgnoreCase);
     }
@@ -127,28 +130,67 @@ public class SemanticIndexBuilder
 
     private void IndexText(string text, long byteOffset, JsonIndex index)
     {
-        var words = text.Split(_options.WordSeparators, StringSplitOptions.RemoveEmptyEntries);
-        var validWords = new List<string>(words.Length);
+        List<string>? validWords = _options.IndexNGrams ? [] : null;
 
-        foreach (var word in words)
+        int i = 0;
+        while (i < text.Length)
         {
-            if (word.Length < _options.MinWordLength) continue;
-            string keyword = _options.CaseSensitive ? word : word.ToLowerInvariant();
+            ReadOnlySpan<char> remaining = text.AsSpan(i);
+            int tokenOffset = remaining.IndexOfAnyExcept(_wordSeparators);
+            if (tokenOffset < 0)
+                break;
+
+            i += tokenOffset;
+            remaining = text.AsSpan(i);
+
+            int length = remaining.IndexOfAny(_wordSeparators);
+            if (length < 0)
+                length = remaining.Length;
+
+            if (length < _options.MinWordLength)
+            {
+                i += length;
+                continue;
+            }
+
+            string keyword = CreateKeyword(text, i, length);
             index.Add(keyword, byteOffset);
-            validWords.Add(keyword);
+            validWords?.Add(keyword);
+
+            i += length;
         }
 
         // N-gram indexing for phrase search
-        if (_options.IndexNGrams && validWords.Count > 1)
+        if (validWords is { Count: > 1 })
         {
+            var builder = new StringBuilder();
             for (int n = 2; n <= Math.Min(_options.MaxNGramLength, validWords.Count); n++)
             {
-                for (int i = 0; i <= validWords.Count - n; i++)
+                for (int start = 0; start <= validWords.Count - n; start++)
                 {
-                    var ngram = string.Join(" ", validWords.GetRange(i, n));
-                    index.Add(ngram, byteOffset);
+                    builder.Clear();
+                    builder.Append(validWords[start]);
+                    for (int j = 1; j < n; j++)
+                    {
+                        builder.Append(' ');
+                        builder.Append(validWords[start + j]);
+                    }
+
+                    index.Add(builder.ToString(), byteOffset);
                 }
             }
         }
+    }
+
+    private string CreateKeyword(string text, int start, int length)
+    {
+        if (_options.CaseSensitive)
+            return text.Substring(start, length);
+
+        return string.Create(length, (text, start), static (span, state) =>
+        {
+            for (int i = 0; i < span.Length; i++)
+                span[i] = char.ToLowerInvariant(state.text[state.start + i]);
+        });
     }
 }
