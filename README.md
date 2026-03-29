@@ -84,6 +84,19 @@ foreach (var obj in result.Objects)
     Console.WriteLine($"[{obj.StartPosition}+{obj.Length}] {obj.JsonContent}");
 ```
 
+### Streaming JSON Path Processing
+
+```csharp
+await JsonTools.ExtractPath(stream, "company.departments.engineering.employees")
+    .SkipValidation()
+    .ProcessAsync(obj =>
+    {
+        Console.WriteLine($"[{obj.ItemIndex}] {obj.StartPosition}+{obj.Length}");
+    });
+```
+
+Use `ProcessAsync(...)` here when the target path can contain many objects and you want to keep memory bounded instead of materializing the whole result set first.
+
 ### Trie Indexing
 
 ```csharp
@@ -161,7 +174,7 @@ src/
       SemanticController      # POST /api/semantic/search
 
 tests/
-  JsonUtilities.Tests/        # 105 xUnit tests
+  JsonUtilities.Tests/        # 115 xUnit tests
     ByteRangeScannerTests     # ~25 cases: extraction, positions, hashing, edge cases
     JsonPathScannerTests      # ~18 cases: nested paths, strict mode, byte accuracy
     TrieTests                 # ~17 cases: insert, search, prefix, unicode, large dataset
@@ -221,7 +234,7 @@ For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performa
 
 ```bash
 dotnet test
-# Passed! - Failed: 0, Passed: 110, Skipped: 0
+# Passed! - Failed: 0, Passed: 115, Skipped: 0
 ```
 
 ```bash

@@ -73,6 +73,26 @@ public sealed class PathScanBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the file I/O buffer size in bytes used while reading the JSON stream.
+    /// Default: 64 KB.
+    /// </summary>
+    public PathScanBuilder BufferSize(int bytes)
+    {
+        _options.BufferSize = bytes;
+        return this;
+    }
+
+    /// <summary>
+    /// Processes matching objects incrementally, invoking <paramref name="processor"/> once per object.
+    /// Use this overload to keep memory bounded when scanning large streams.
+    /// </summary>
+    public Task ProcessAsync(Action<JsonObjectRange> processor)
+    {
+        var scanner = new GenericJsonPathScanner();
+        return scanner.ProcessStreamAsync(_stream, _jsonPath, processor, _options);
+    }
+
     /// <summary>Executes the path scan and returns the result.</summary>
     /// <returns>A <see cref="JsonPathScanResult"/> containing all found objects and metadata.</returns>
     public Task<JsonPathScanResult> RunAsync()

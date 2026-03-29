@@ -24,6 +24,12 @@ public class JsonPathScanOptions
     public bool IncludeJsonContent { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets the file I/O buffer size in bytes used while reading the JSON stream.
+    /// Larger values can improve throughput on large files. Default: 64 KB.
+    /// </summary>
+    public int BufferSize { get; set; } = 65536;
+
+    /// <summary>
     /// Gets or sets the maximum allowed size in bytes for a single JSON object.
     /// Default: 10 MB.
     /// </summary>

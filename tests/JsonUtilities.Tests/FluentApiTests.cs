@@ -118,6 +118,20 @@ public class FluentApiTests
     }
 
     [Fact]
+    public async Task JsonTools_ExtractPath_ProcessAsync_StreamsObjects()
+    {
+        using var stream = Helpers.ToNonSeekableStream(@"{""company"":{""departments"":{""engineering"":{""employees"":[{""id"":1},{""id"":2}]}}}}", chunkSize: 4);
+        var seen = new System.Collections.Generic.List<int>();
+
+        await JsonTools.ExtractPath(stream, "company.departments.engineering.employees")
+            .SkipValidation()
+            .BufferSize(5)
+            .ProcessAsync(obj => seen.Add(obj.ItemIndex));
+
+        seen.Should().Equal(0, 1);
+    }
+
+    [Fact]
     public void JsonTools_BuildTrie_SearchWorks()
     {
         var items = new[] { "Tom Hanks", "Tom Cruise", "Morgan Freeman" };

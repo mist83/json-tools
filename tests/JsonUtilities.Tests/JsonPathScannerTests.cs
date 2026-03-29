@@ -171,6 +171,54 @@ public class JsonPathScannerTests
     }
 
     [Fact]
+    public async Task ProcessStreamAsync_NonSeekableStream_CallbackInvokedForEachObject()
+    {
+        int count = 0;
+        using var stream = Helpers.ToNonSeekableStream(@"{""items"":[{""id"":1},{""id"":2},{""id"":3}]}", chunkSize: 4);
+        await _scanner.ProcessStreamAsync(stream, "items",
+            _ => count++,
+            new JsonPathScanOptions
+            {
+                IncludeJsonContent = false,
+                SkipStructureValidation = true,
+                BufferSize = 5
+            });
+
+        count.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task ScanAsync_TinyBuffer_CrossesPathAndObjectBoundaries()
+    {
+        const string json = """
+            {
+              "company": {
+                "departments": {
+                  "engineering": {
+                    "employees": [
+                      { "id": 1, "name": "alpha" },
+                      { "id": 2, "name": "beta" }
+                    ]
+                  }
+                }
+              }
+            }
+            """;
+
+        using var stream = Helpers.ToNonSeekableStream(json, chunkSize: 3);
+        var result = await _scanner.ScanAsync(stream, "company.departments.engineering.employees",
+            new JsonPathScanOptions
+            {
+                IncludeJsonContent = true,
+                CalculateHashes = false,
+                BufferSize = 4
+            });
+
+        result.Objects.Should().HaveCount(2);
+        result.Objects.Select(o => o.JsonContent).Should().OnlyContain(content => content!.Contains("\"id\""));
+    }
+
+    [Fact]
     public async Task ScanAsync_SkipStructureValidation_StillExtractsObjects()
     {
         using var stream = Helpers.LoadFixture("nested.json");
@@ -189,5 +237,42 @@ public class JsonPathScannerTests
 
         result.Metadata.TotalObjectsFound.Should().Be(3);
         result.Metadata.BytesProcessed.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ScanAsync_NonSeekableStream_Metadata_TracksBytesProcessed()
+    {
+        const string json = @"{""items"":[{""id"":1},{""id"":2}]}";
+        byte[] bytes = Encoding.UTF8.GetBytes(json);
+        using var stream = Helpers.ToNonSeekableStream(json, chunkSize: 5);
+
+        var result = await _scanner.ScanAsync(stream, "items",
+            new JsonPathScanOptions
+            {
+                IncludeJsonContent = false,
+                SkipStructureValidation = true,
+                BufferSize = 6
+            });
+
+        result.Objects.Should().HaveCount(2);
+        result.Metadata.BytesProcessed.Should().Be(bytes.Length);
+    }
+
+    [Fact]
+    public async Task ScanAsync_Utf8Bom_ExtractsObjects()
+    {
+        const string json = @"{""items"":[{""id"":1},{""id"":2}]}";
+        byte[] bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(json)).ToArray();
+        using var stream = new System.IO.MemoryStream(bytes);
+
+        var result = await _scanner.ScanAsync(stream, "items",
+            new JsonPathScanOptions
+            {
+                IncludeJsonContent = true,
+                CalculateHashes = false
+            });
+
+        result.Objects.Should().HaveCount(2);
+        result.HasErrors.Should().BeFalse();
     }
 }
