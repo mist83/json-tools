@@ -215,6 +215,8 @@ For the next step, including the exact project scaffold, contract-sharing plan, 
 - `FileStream` with `useAsync: true` and `FileShare.Read`
 - Semantic index: 500 MB catalog → ~20-40 MB index, sub-millisecond prefix search
 
+For repeatable local evidence, use the BenchmarkDotNet harness in [docs/performance/README.md](docs/performance/README.md).
+
 ## 🧪 Running Tests
 
 ```bash

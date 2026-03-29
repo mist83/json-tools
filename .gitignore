@@ -6,3 +6,4 @@ obj/
 .DS_Store
 publish/
 e2e/node_modules/
+BenchmarkDotNet.Artifacts/
