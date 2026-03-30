@@ -86,11 +86,11 @@ module.exports = {
             }
         },
         {
-            name: 'Design system stylesheet loaded (ui.mikesendpoint.com)',
+            name: 'Design system stylesheet loaded (ui.mullmania.com)',
             async fn(page) {
                 const hasDesignSystem = await page.evaluate(() => {
                     const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
-                    return links.some(l => l.href.includes('ui.mikesendpoint.com'));
+                    return links.some(l => l.href.includes('ui.mullmania.com'));
                 });
                 if (!hasDesignSystem) throw new Error('Design system stylesheet not found');
             }
