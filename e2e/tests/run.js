@@ -2,12 +2,12 @@
 // JsonUtilities E2E Test Runner
 // Usage: node tests/run.js
 //        HEADLESS=false node tests/run.js   (watch mode)
-//        BASE_URL=http://localhost:5000 node tests/run.js
+//        BASE_URL=http://localhost:5968 node tests/run.js
 
 const fs = require('fs');
 const puppeteer = require('puppeteer');
 
-const BASE_URL = process.env.BASE_URL || 'https://json-tools.mikesendpoint.com';
+const BASE_URL = process.env.BASE_URL || 'https://json-utilities.mullmania.com';
 const HEADLESS = process.env.HEADLESS !== 'false';
 const API_TIMEOUT = 25000; // 25s — Lambda cold start can be slow
 const NAV_TIMEOUT = 30000;

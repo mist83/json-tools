@@ -1,12 +1,12 @@
 {
   "name": "json-utilities-e2e",
   "version": "1.0.0",
-  "description": "Exhaustive Puppeteer E2E tests for json-tools.mikesendpoint.com",
+  "description": "Exhaustive Puppeteer E2E tests for json-utilities.mullmania.com",
   "main": "index.js",
   "scripts": {
     "test": "node tests/run.js",
     "test:headed": "HEADLESS=false node tests/run.js",
-    "test:local": "BASE_URL=http://localhost:5000 node tests/run.js"
+    "test:local": "BASE_URL=http://localhost:5968 node tests/run.js"
   },
   "keywords": [],
   "author": "Mike Ullman",

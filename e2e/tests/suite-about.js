@@ -74,11 +74,11 @@ module.exports = {
             }
         },
         {
-            name: 'Test suite section shows 105 passing badge',
+            name: 'Test suite section shows 117 passing badge',
             async fn(page) {
                 await page.click('[data-tab="about"]');
                 const text = await page.$eval('#content-about', el => el.textContent);
-                assertContains(text, '105');
+                assertContains(text, '117');
                 assertContains(text, 'passing');
             }
         },

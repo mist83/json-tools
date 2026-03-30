@@ -19,10 +19,10 @@ module.exports = {
             }
         },
         {
-            name: 'Header has status badges (105 tests, .NET 8)',
+            name: 'Header has status badges (117 tests, .NET 8)',
             async fn(page) {
                 const headerText = await page.$eval('.header', el => el.textContent);
-                assertContains(headerText, '105');
+                assertContains(headerText, '117');
                 assertContains(headerText, '.NET 8');
             }
         },
