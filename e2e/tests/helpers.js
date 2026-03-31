@@ -156,8 +156,24 @@ async function exists(page, selector) {
  */
 async function waitForAppReady(page, timeout = 15000) {
     const start = Date.now();
+    let triedHomeRecovery = false;
+
     while (Date.now() - start < timeout) {
         try {
+            if (!triedHomeRecovery) {
+                const activeTabId = await page.evaluate(() => {
+                    const activeTab = document.querySelector('.tab.active');
+                    return activeTab?.dataset?.tabId || null;
+                });
+
+                if (activeTabId && activeTabId !== 'home') {
+                    triedHomeRecovery = true;
+                    await page.evaluate(() => {
+                        window.location.hash = '#home';
+                    });
+                }
+            }
+
             const ready = await page.evaluate(() => {
                 const activeTab = document.querySelector('.tab.active');
                 const homeWrapper = document.querySelector('[data-tab-id="home"].display-block');
@@ -171,6 +187,22 @@ async function waitForAppReady(page, timeout = 15000) {
         } catch (_) {}
         await sleep(300);
     }
+
+    const ready = await page.evaluate(() => {
+        const activeTab = document.querySelector('.tab.active');
+        const homeWrapper = document.querySelector('[data-tab-id="home"].display-block');
+        return {
+            tabsEverywhere: typeof window.TabsEverywhere !== 'undefined',
+            activeTabId: activeTab?.dataset?.tabId || null,
+            hasHomeWrapper: !!homeWrapper,
+            hasHomePaste: !!homeWrapper?.querySelector('#home-paste-json'),
+        };
+    });
+
+    if (!ready.tabsEverywhere || ready.activeTabId !== 'home' || !ready.hasHomeWrapper || !ready.hasHomePaste) {
+        throw new Error(`App never reached ready home state: ${JSON.stringify(ready)}`);
+    }
+
     await sleep(300);
 }
 
