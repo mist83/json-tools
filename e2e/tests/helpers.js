@@ -156,22 +156,25 @@ async function exists(page, selector) {
  */
 async function waitForAppReady(page, timeout = 15000) {
     const start = Date.now();
-    let triedHomeRecovery = false;
 
     while (Date.now() - start < timeout) {
         try {
-            if (!triedHomeRecovery) {
-                const activeTabId = await page.evaluate(() => {
-                    const activeTab = document.querySelector('.tab.active');
-                    return activeTab?.dataset?.tabId || null;
-                });
+            const activeTabId = await page.evaluate(() => {
+                const activeTab = document.querySelector('.tab.active');
+                return activeTab?.dataset?.tabId || null;
+            });
 
-                if (activeTabId && activeTabId !== 'home') {
-                    triedHomeRecovery = true;
-                    await page.evaluate(() => {
-                        window.location.hash = '#home';
-                    });
-                }
+            if (activeTabId && activeTabId !== 'home') {
+                await page.evaluate(() => {
+                    const homeTab = document.querySelector('#tab-home');
+                    if (homeTab instanceof HTMLElement) {
+                        homeTab.click();
+                        return;
+                    }
+                    window.location.hash = '#home';
+                });
+                await sleep(200);
+                continue;
             }
 
             const ready = await page.evaluate(() => {

@@ -34,7 +34,7 @@ module.exports = {
         {
             name: 'Sidebar is not present on Home tab',
             async fn(page) {
-                await waitForAppReady(page);
+                await freshLoad(page);
                 await switchTab(page, 'tools');
                 await switchTab(page, 'home');
                 const toolsWrapperVisible = await page.evaluate(() => {
@@ -85,9 +85,7 @@ module.exports = {
         {
             name: 'Sidebar dataset label shows "No data loaded" initially',
             async fn(page) {
-                await page.evaluate(() => localStorage.clear());
-                await page.reload({ waitUntil: 'networkidle2' });
-                await waitForAppReady(page);
+                await freshLoad(page);
                 await switchTab(page, 'tools');
                 const label = await page.$eval('#sidebar-dataset-label', el => el.textContent);
                 assertContains(label, 'No data loaded');
