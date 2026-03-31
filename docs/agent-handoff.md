@@ -1,7 +1,7 @@
 # Agent Handoff — JsonUtilities Demo UI
 
 **Last updated:** 2026-03-31  
-**Status:** UI migrated to ui.mikesendpoint.com. E2E tests rewritten for new architecture. E2E tests not yet fully passing — see Known Issues below.
+**Status:** UI is migrated to `ui.mikesendpoint.com`, local `.NET` tests and local Puppeteer E2E are green, and the latest follow-up fixed cached-tab hash/event sync plus the mobile header badge overflow.
 
 ---
 
@@ -48,6 +48,11 @@ The UI was migrated from a monolithic `index.html` to the canonical `ui.mikesend
 | All HTML in one `index.html` | Shell `index.html` + `tabs/home.html`, `tabs/tools.html`, `tabs/about.html` |
 | Hand-rolled tab switching | TabsEverywhere framework |
 | Inline `style=` everywhere | Canonical utility classes |
+
+Follow-up fixes in the current pass:
+
+- Cached `htmlSource` tabs now dispatch `tabs-everywhere:tab-changed` and update the URL hash even when the DOM is reused from cache.
+- The header badge row now reflows cleanly on narrower viewports instead of clipping off-screen.
 
 ### How TabsEverywhere Works (Critical for E2E)
 
@@ -118,45 +123,11 @@ await window._tabsEverywhere.init();
 
 ## E2E Test Status
 
-### What's Working (as of last run)
+### Current Local Result
 
-- ✅ All 14 Page Load & Structure tests
-- ✅ 18/19 Home Tab tests (1 failure: "Go to Tools" navigation — see below)
-- ⚠️ Tools Tab, Sidebar, and tool-specific suites — **timing out**
-
-### Known Issue: E2E switchTab Timing
-
-The `switchTab(page, tabName)` helper in `e2e/tests/helpers.js` is unreliable. Root cause:
-
-After `page.reload()`, the test calls `waitForAppReady()` then `switchTab('tools')`. The problem is a race condition:
-
-1. Page reloads with `#tools` in the URL hash (left over from previous test)
-2. TabsEverywhere's hashchange fires and loads tools tab
-3. `waitForAppReady()` resolves (home tab content is present)
-4. `switchTab('tools')` clicks `#tab-tools`
-5. TabsEverywhere tries to load tools tab again — but it's already cached
-6. The content wrapper may already have `display-block` before the click, so the poll resolves immediately
-7. But `app.js`'s `onTabLoaded('tools')` hasn't fired yet, so `initTrieLiveSearch()` hasn't run
-
-**The fix that needs to happen:**
-
-Option A: Clear the URL hash before each `page.reload()` in test helpers:
-```js
-async function freshLoad(page, BASE_URL) {
-    await page.evaluate(() => { window.location.hash = ''; });
-    await page.evaluate(() => localStorage.clear());
-    await page.reload({ waitUntil: 'networkidle2' });
-    await waitForAppReady(page);
-}
-```
-
-Option B: After `switchTab`, wait for a specific element that only exists after `onTabLoaded` fires (e.g. for tools, wait for `#byte-range-hashes` to exist, not just `#tools-sidebar`).
-
-Option C: In `app.js`, expose a flag like `window._appTabReady = tabId` after `onTabLoaded` completes, and poll for that in `switchTab`.
-
-### "Go to Tools" Test Failure
-
-The test sets `window.location.hash = 'tools'` and waits for `#content-tools`. But `#content-tools` doesn't exist as a top-level element — it's inside the TabsEverywhere wrapper. The test should wait for `#tools-sidebar` instead, or check that `[data-tab-id="tools"].display-block` exists.
+- `dotnet test` passes locally: `117/117`
+- `BASE_URL=http://localhost:5968 node tests/run.js` passes locally: `148/148`
+- Browser follow-up still worth keeping: reload/hash navigation and mobile layout should remain part of future smoke coverage because those were the two most recent regressions
 
 ---
 

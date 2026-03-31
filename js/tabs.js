@@ -196,6 +196,33 @@ class TabsEverywhere {
         container.innerHTML = html;
     }
 
+    finalizeTabLoad(tabId, tab, itemId, isInit, options = {}) {
+        const { deferEventMs = 0 } = options;
+        const dispatchTabChanged = () => {
+            const event = new CustomEvent('tabs-everywhere:tab-changed', {
+                detail: { tabId: tabId, tab: tab, itemId: itemId }
+            });
+            document.dispatchEvent(event);
+            console.log('[Tabs Everywhere] 📡 Dispatched tab-changed event');
+        };
+
+        if (deferEventMs > 0) {
+            setTimeout(dispatchTabChanged, deferEventMs);
+        } else {
+            dispatchTabChanged();
+        }
+
+        if (!isInit) {
+            console.log('[Tabs Everywhere] 📝 Updating history');
+            this.updateHistory(tabId, itemId);
+        }
+
+        this.currentlyLoadingTab = null;
+        console.log('[Tabs Everywhere] ✅ Cleared currentlyLoadingTab');
+        console.log('[Tabs Everywhere] loadTab COMPLETE');
+        console.log('[Tabs Everywhere] ========================================');
+    }
+
     async loadTab(tabId, itemId = null, isInit = false) {
         console.log('[Tabs Everywhere] ========================================');
         console.log('[Tabs Everywhere] loadTab START:', { tabId, itemId, isInit });
@@ -262,12 +289,8 @@ class TabsEverywhere {
                 tabContentDiv.classList.add('display-block');
                 tabContentDiv.style.display = 'block'; // Force show
                 console.log('[Tabs Everywhere] ✅ Showing cached content for:', tabId);
-                
-                // Clear loading guard and exit
-                this.currentlyLoadingTab = null;
-                console.log('[Tabs Everywhere] ✅ Cleared currentlyLoadingTab');
-                console.log('[Tabs Everywhere] loadTab COMPLETE');
-                console.log('[Tabs Everywhere] ========================================');
+
+                this.finalizeTabLoad(tabId, tab, itemId, isInit);
                 return;
             }
             
@@ -341,14 +364,9 @@ class TabsEverywhere {
                 tabContentDiv.classList.remove('display-none');
                 tabContentDiv.classList.add('display-block');
                 console.log('[Tabs Everywhere] ✅ Tab content visible');
-                
-                setTimeout(() => {
-                    const event = new CustomEvent('tabs-everywhere:tab-changed', {
-                        detail: { tabId: tabId, tab: tab, itemId: itemId }
-                    });
-                    document.dispatchEvent(event);
-                    console.log('[Tabs Everywhere] 📡 Dispatched tab-changed event');
-                }, 100);
+
+                this.finalizeTabLoad(tabId, tab, itemId, isInit, { deferEventMs: 100 });
+                return;
             } catch (error) {
                 console.error('[Tabs Everywhere] Error loading tab HTML:', error);
                 tabContentDiv = document.createElement('div');
@@ -356,6 +374,8 @@ class TabsEverywhere {
                 tabContentDiv.innerHTML = `<div class="layout single"><div class="content"><p>Error loading content from ${tab.htmlSource}</p></div></div>`;
                 contentContainer.appendChild(tabContentDiv);
                 tabContentDiv.classList.add('display-block');
+                this.finalizeTabLoad(tabId, tab, itemId, isInit);
+                return;
             }
         } else {
             console.log('[Tabs Everywhere] 📋 Loading sidebar-content tab:', tabId);
@@ -383,22 +403,9 @@ class TabsEverywhere {
             }
             
             // Dispatch tab change event after content is ready
-            const event = new CustomEvent('tabs-everywhere:tab-changed', {
-                detail: { tabId: tabId, tab: tab, itemId: itemId }
-            });
-            document.dispatchEvent(event);
+            this.finalizeTabLoad(tabId, tab, itemId, isInit);
+            return;
         }
-        
-        if (!isInit) {
-            console.log('[Tabs Everywhere] 📝 Updating history');
-            this.updateHistory(tabId, itemId);
-        }
-        
-        // Clear loading guard after tab load completes
-        this.currentlyLoadingTab = null;
-        console.log('[Tabs Everywhere] ✅ Cleared currentlyLoadingTab');
-        console.log('[Tabs Everywhere] loadTab COMPLETE');
-        console.log('[Tabs Everywhere] ========================================');
     }
     
     updateHistory(tabId, itemId = null, isFirstItem = false) {

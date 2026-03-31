@@ -1,0 +1,82 @@
+[     301ms] [LOG] [UI] Loading UI framework... @ https://ui.mikesendpoint.com/js/ui.js:164
+[     304ms] [LOG] [UI] Loaded modals-js @ https://ui.mikesendpoint.com/js/ui.js:150
+[     306ms] [LOG] [UI] Loaded tabs-js @ https://ui.mikesendpoint.com/js/ui.js:150
+[     308ms] [LOG] [Toasts Everywhere] Library loaded @ http://localhost:5968/js/toasts.js:319
+[     308ms] [LOG] [UI] Loaded toasts-js @ https://ui.mikesendpoint.com/js/ui.js:150
+[     312ms] [LOG] [Tables Everywhere] Library loaded v1.0.0 @ http://localhost:5968/js/tables.js:241
+[     312ms] [LOG] [UI] Loaded tables-js @ https://ui.mikesendpoint.com/js/ui.js:150
+[     314ms] [LOG] [Cards Everywhere] Library loaded v1.0.0 @ http://localhost:5968/js/cards.js:210
+[     314ms] [LOG] [UI] Loaded cards-js @ https://ui.mikesendpoint.com/js/ui.js:150
+[     314ms] [LOG] [UI] All libraries loaded @ https://ui.mikesendpoint.com/js/ui.js:174
+[     315ms] [LOG] [Tabs Everywhere] Using provided sitemap object @ http://localhost:5968/js/tabs.js:141
+[     315ms] [LOG] [UI] Framework ready @ https://ui.mikesendpoint.com/js/ui.js:188
+[     315ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:226
+[     316ms] [LOG] [Tabs Everywhere] loadTab START: {tabId: home, itemId: null, isInit: true} @ http://localhost:5968/js/tabs.js:227
+[     316ms] [LOG] [Tabs Everywhere] currentlyLoadingTab: undefined @ http://localhost:5968/js/tabs.js:228
+[     316ms] [LOG] [Tabs Everywhere] ✅ Set currentlyLoadingTab to: home @ http://localhost:5968/js/tabs.js:236
+[     316ms] [LOG] [Tabs Everywhere] Found tab config: Home @ http://localhost:5968/js/tabs.js:239
+[     316ms] [LOG] [Tabs Everywhere] 📄 Loading HTML content tab @ http://localhost:5968/js/tabs.js:270
+[     316ms] [LOG] [Tabs Everywhere] 🔍 Found 0 existing tab divs @ http://localhost:5968/js/tabs.js:274
+[     316ms] [LOG] [Tabs Everywhere] 🔍 Looking for cached div with tabId: home found: false @ http://localhost:5968/js/tabs.js:284
+[     316ms] [LOG] [Tabs Everywhere] 🌐 Fetching HTML from: /tabs/home.html @ http://localhost:5968/js/tabs.js:299
+[     317ms] [LOG] [Tabs Everywhere] ✅ HTML fetched, length: 5052 @ http://localhost:5968/js/tabs.js:302
+[     318ms] [LOG] [Tabs Everywhere] ✅ Content appended to DOM @ http://localhost:5968/js/tabs.js:338
+[     318ms] [LOG] [Tabs Everywhere] 📜 Found 0 scripts @ http://localhost:5968/js/tabs.js:342
+[     318ms] [LOG] [Tabs Everywhere] ✅ Scripts executed @ http://localhost:5968/js/tabs.js:358
+[     318ms] [LOG] [Tabs Everywhere] ✅ Tab content visible @ http://localhost:5968/js/tabs.js:365
+[     318ms] [LOG] [Tabs Everywhere] ✅ Cleared currentlyLoadingTab @ http://localhost:5968/js/tabs.js:220
+[     318ms] [LOG] [Tabs Everywhere] loadTab COMPLETE @ http://localhost:5968/js/tabs.js:221
+[     318ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:222
+[     419ms] [LOG] [Tabs Everywhere] 📡 Dispatched tab-changed event @ http://localhost:5968/js/tabs.js:205
+[   30497ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:226
+[   30497ms] [LOG] [Tabs Everywhere] loadTab START: {tabId: tools, itemId: null, isInit: false} @ http://localhost:5968/js/tabs.js:227
+[   30497ms] [LOG] [Tabs Everywhere] currentlyLoadingTab: null @ http://localhost:5968/js/tabs.js:228
+[   30497ms] [LOG] [Tabs Everywhere] ✅ Set currentlyLoadingTab to: tools @ http://localhost:5968/js/tabs.js:236
+[   30497ms] [LOG] [Tabs Everywhere] Found tab config: Tools @ http://localhost:5968/js/tabs.js:239
+[   30497ms] [LOG] [Tabs Everywhere] 📄 Loading HTML content tab @ http://localhost:5968/js/tabs.js:270
+[   30497ms] [LOG] [Tabs Everywhere] 🔍 Found 1 existing tab divs @ http://localhost:5968/js/tabs.js:274
+[   30497ms] [LOG] [Tabs Everywhere] 👁️ Hiding div: home @ http://localhost:5968/js/tabs.js:276
+[   30497ms] [LOG] [Tabs Everywhere] 🔍 Looking for cached div with tabId: tools found: false @ http://localhost:5968/js/tabs.js:284
+[   30497ms] [LOG] [Tabs Everywhere] 🌐 Fetching HTML from: /tabs/tools.html @ http://localhost:5968/js/tabs.js:299
+[   30510ms] [LOG] [Tabs Everywhere] ✅ HTML fetched, length: 10741 @ http://localhost:5968/js/tabs.js:302
+[   30510ms] [LOG] [Tabs Everywhere] ✅ Content appended to DOM @ http://localhost:5968/js/tabs.js:338
+[   30510ms] [LOG] [Tabs Everywhere] 📜 Found 0 scripts @ http://localhost:5968/js/tabs.js:342
+[   30510ms] [LOG] [Tabs Everywhere] ✅ Scripts executed @ http://localhost:5968/js/tabs.js:358
+[   30510ms] [LOG] [Tabs Everywhere] ✅ Tab content visible @ http://localhost:5968/js/tabs.js:365
+[   30510ms] [LOG] [Tabs Everywhere] 📝 Updating history @ http://localhost:5968/js/tabs.js:215
+[   30510ms] [LOG] [Tabs Everywhere] ✅ Cleared currentlyLoadingTab @ http://localhost:5968/js/tabs.js:220
+[   30510ms] [LOG] [Tabs Everywhere] loadTab COMPLETE @ http://localhost:5968/js/tabs.js:221
+[   30510ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:222
+[   30514ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:226
+[   30514ms] [LOG] [Tabs Everywhere] loadTab START: {tabId: tools, itemId: null, isInit: false} @ http://localhost:5968/js/tabs.js:227
+[   30514ms] [LOG] [Tabs Everywhere] currentlyLoadingTab: null @ http://localhost:5968/js/tabs.js:228
+[   30514ms] [LOG] [Tabs Everywhere] ✅ Set currentlyLoadingTab to: tools @ http://localhost:5968/js/tabs.js:236
+[   30514ms] [LOG] [Tabs Everywhere] Found tab config: Tools @ http://localhost:5968/js/tabs.js:239
+[   30514ms] [LOG] [Tabs Everywhere] 📄 Loading HTML content tab @ http://localhost:5968/js/tabs.js:270
+[   30514ms] [LOG] [Tabs Everywhere] 🔍 Found 2 existing tab divs @ http://localhost:5968/js/tabs.js:274
+[   30514ms] [LOG] [Tabs Everywhere] 👁️ Hiding div: home @ http://localhost:5968/js/tabs.js:276
+[   30514ms] [LOG] [Tabs Everywhere] 👁️ Hiding div: tools @ http://localhost:5968/js/tabs.js:276
+[   30515ms] [LOG] [Tabs Everywhere] 🔍 Looking for cached div with tabId: tools found: true @ http://localhost:5968/js/tabs.js:284
+[   30515ms] [LOG] [Tabs Everywhere] ✅ Showing cached content for: tools @ http://localhost:5968/js/tabs.js:290
+[   30515ms] [LOG] [Tabs Everywhere] 📡 Dispatched tab-changed event @ http://localhost:5968/js/tabs.js:205
+[   30515ms] [LOG] [Tabs Everywhere] 📝 Updating history @ http://localhost:5968/js/tabs.js:215
+[   30515ms] [LOG] [Tabs Everywhere] ✅ Cleared currentlyLoadingTab @ http://localhost:5968/js/tabs.js:220
+[   30515ms] [LOG] [Tabs Everywhere] loadTab COMPLETE @ http://localhost:5968/js/tabs.js:221
+[   30515ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:222
+[   30611ms] [LOG] [Tabs Everywhere] 📡 Dispatched tab-changed event @ http://localhost:5968/js/tabs.js:205
+[   36911ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:226
+[   36911ms] [LOG] [Tabs Everywhere] loadTab START: {tabId: tools, itemId: null, isInit: false} @ http://localhost:5968/js/tabs.js:227
+[   36911ms] [LOG] [Tabs Everywhere] currentlyLoadingTab: null @ http://localhost:5968/js/tabs.js:228
+[   36911ms] [LOG] [Tabs Everywhere] ✅ Set currentlyLoadingTab to: tools @ http://localhost:5968/js/tabs.js:236
+[   36911ms] [LOG] [Tabs Everywhere] Found tab config: Tools @ http://localhost:5968/js/tabs.js:239
+[   36911ms] [LOG] [Tabs Everywhere] 📄 Loading HTML content tab @ http://localhost:5968/js/tabs.js:270
+[   36911ms] [LOG] [Tabs Everywhere] 🔍 Found 2 existing tab divs @ http://localhost:5968/js/tabs.js:274
+[   36911ms] [LOG] [Tabs Everywhere] 👁️ Hiding div: home @ http://localhost:5968/js/tabs.js:276
+[   36911ms] [LOG] [Tabs Everywhere] 👁️ Hiding div: tools @ http://localhost:5968/js/tabs.js:276
+[   36911ms] [LOG] [Tabs Everywhere] 🔍 Looking for cached div with tabId: tools found: true @ http://localhost:5968/js/tabs.js:284
+[   36911ms] [LOG] [Tabs Everywhere] ✅ Showing cached content for: tools @ http://localhost:5968/js/tabs.js:290
+[   36912ms] [LOG] [Tabs Everywhere] 📡 Dispatched tab-changed event @ http://localhost:5968/js/tabs.js:205
+[   36912ms] [LOG] [Tabs Everywhere] 📝 Updating history @ http://localhost:5968/js/tabs.js:215
+[   36912ms] [LOG] [Tabs Everywhere] ✅ Cleared currentlyLoadingTab @ http://localhost:5968/js/tabs.js:220
+[   36912ms] [LOG] [Tabs Everywhere] loadTab COMPLETE @ http://localhost:5968/js/tabs.js:221
+[   36912ms] [LOG] [Tabs Everywhere] ======================================== @ http://localhost:5968/js/tabs.js:222
