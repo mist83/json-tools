@@ -1,0 +1,71 @@
+<div class="section active" id="content-about">
+    <h2>About JsonUtilities</h2>
+    <p class="text-secondary">A high-performance .NET 8 library for scanning large JSON files without full deserialization. Uses byte-range tracking, dot-notation path extraction, prefix-tree indexing, and semantic keyword search.</p>
+
+    <div class="grid-3 gap-md">
+        <div class="card">
+            <div class="card-title"><i class="ti ti-scan"></i> Byte-Range Scanning</div>
+            <p class="text-secondary text-sm mt-sm">Extract objects with precise byte positions using <code>ArrayPool</code> buffers and zero-copy <code>Span&lt;T&gt;</code> slicing. Parallel processing via <code>Channel&lt;T&gt;</code>.</p>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="ti ti-route"></i> Path Extraction</div>
+            <p class="text-secondary text-sm mt-sm">Navigate deeply nested JSON using dot-notation paths like <code>company.departments.engineering.employees</code>. Case-insensitive by default.</p>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="ti ti-search"></i> Trie Indexing</div>
+            <p class="text-secondary text-sm mt-sm">Generic prefix-tree with O(prefix_length) search. Supports unicode, duplicates, exact-match, and batch construction via <code>TrieBuilder&lt;T&gt;</code>.</p>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="ti ti-brain"></i> Semantic Search</div>
+            <p class="text-secondary text-sm mt-sm">Index specific fields (title, cast, description) by keyword → byte offset. The demo exposes the real semantic-index path in API modes, with a browser-only preview for private data.</p>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="ti ti-shield-check"></i> UTF-8 Validation</div>
+            <p class="text-secondary text-sm mt-sm">Validates delimiter safety for multi-byte UTF-8 sequences. Ensures <code>{</code>, <code>}</code>, <code>"</code>, <code>\</code> bytes are never part of a multi-byte character.</p>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="ti ti-code"></i> Fluent API</div>
+            <p class="text-secondary text-sm mt-sm">Chainable builder: <code>JsonTools.Scan(stream).ForCollections("products").WithHashes().WithContent().RunAsync()</code></p>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <h3><i class="ti ti-lock"></i> Demo Modes</h3>
+        <p class="text-secondary text-sm">You can try the same UI three ways: hosted API, localhost API, or Browser Preview. That makes the privacy story clearer today and creates a clean stepping stone toward a future C# WebAssembly build where the shared request/response contract stays the same but the execution target moves into the browser.</p>
+    </div>
+
+    <div class="content-card mt-md">
+        <h3><i class="ti ti-terminal"></i> Quick Start</h3>
+        <p class="text-secondary text-sm">Run the demo locally and open <code>http://localhost:5968</code>. Swagger stays available at <code>/swagger</code>.</p>
+        <pre><code>// Byte-range scan
+var result = await JsonTools.Scan(stream)
+    .ForCollections("products", "reviews")
+    .WithHashes()
+    .WithContent()
+    .RunAsync();
+
+// Path extraction
+var employees = await JsonTools.ExtractPath(stream,
+    "company.departments.engineering.employees")
+    .WithContent()
+    .RunAsync();
+
+// Semantic search index
+var index = await JsonTools.BuildSemanticIndex(filePath,
+    new SemanticIndexOptions {
+        IndexedFields = ["title", "cast", "description"],
+        IndexNGrams = true
+    });
+var matches = index.SearchObjects("hanks", filePath);</code></pre>
+    </div>
+
+    <div class="content-card">
+        <h3><i class="ti ti-test-pipe"></i> Test Suite</h3>
+        <p class="text-secondary text-sm">117 xUnit tests across 7 test classes — all passing.</p>
+        <div class="grid-row gap-sm mt-sm">
+            <span class="status-badge status-enabled"><i class="ti ti-check"></i> 117 passing</span>
+            <span class="status-badge status-info"><i class="ti ti-x"></i> 0 failing</span>
+            <span class="status-badge status-warning"><i class="ti ti-clock"></i> ~33ms</span>
+        </div>
+    </div>
+</div>

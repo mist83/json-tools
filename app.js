@@ -2,6 +2,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Plugin registry (PluginRegistry) is loaded before this file via plugin-registry.js
 // DataGenerator is loaded before this file via data-generator.js
+// TabsEverywhere is loaded via ui.mikesendpoint.com/ui.js
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const LS_KEY = 'jsontools_active_data';
@@ -20,39 +21,50 @@ let _executionMode = 'auto';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize plugin registry with built-in data generators
+// Called from index.html after TabsEverywhere.init() completes
+function initApp() {
     DataGenerator.init();
-    initTabs();
-    initHome();
-    initTrieLiveSearch();
     loadExecutionMode();
     loadDatasetFromStorage();
+
+    // Wire up tab-change events from TabsEverywhere
+    document.addEventListener('tabs-everywhere:tab-changed', (e) => {
+        const tabId = e.detail && e.detail.tabId;
+        onTabLoaded(tabId);
+    });
+
+    // TabsEverywhere loads the first tab synchronously during init(),
+    // so fire onTabLoaded for whatever tab is active now.
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+        const tabId = activeTab.dataset.tabId || activeTab.textContent.trim().toLowerCase();
+        // Give the DOM a tick to settle after htmlSource injection
+        setTimeout(() => onTabLoaded(tabId), 50);
+    }
+}
+
+// Called every time TabsEverywhere finishes loading a tab's HTML
+function onTabLoaded(tabId) {
     refreshExecutionModeUI();
     refreshHomeStatus();
     refreshSidebarLabel();
-    // Start with sidebar hidden (Home tab is active)
-    document.querySelector('.layout.sidebar-content').classList.add('no-sidebar');
-});
+    refreshNoDataBanner();
 
-// ── Tab Navigation ────────────────────────────────────────────────────────────
-
-function initTabs() {
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-    });
+    if (tabId === 'home') {
+        initHome();
+    }
+    if (tabId === 'tools') {
+        initTrieLiveSearch();
+        refreshNoDataBanner();
+    }
 }
 
-function switchTab(name) {
-    document.querySelectorAll('.tab').forEach(t =>
-        t.classList.toggle('active', t.dataset.tab === name));
-    document.querySelectorAll('.section').forEach(s =>
-        s.classList.toggle('active', s.id === `content-${name}`));
+// ── Tab Navigation (via TabsEverywhere) ──────────────────────────────────────
 
-    // Show/hide sidebar by toggling no-sidebar on the layout
-    document.querySelector('.layout.sidebar-content').classList.toggle('no-sidebar', name !== 'tools');
-
-    if (name === 'tools') refreshNoDataBanner();
+function switchToHomeTab() {
+    if (window._tabsEverywhere) {
+        window.location.hash = 'home';
+    }
 }
 
 // ── Tool Navigation (within Tools tab) ───────────────────────────────────────
@@ -63,11 +75,9 @@ function switchTool(name) {
     document.querySelectorAll('.tool-panel').forEach(panel =>
         panel.classList.toggle('active', panel.id === `tool-${name}`));
 
-    // Populate path suggestions when switching to path-extract
     if (name === 'path-extract' && _activeDataset) {
         renderPathSuggestions();
     }
-    // Populate field chips when switching to semantic
     if (name === 'semantic' && _activeDataset) {
         renderSemanticFieldChips();
     }
@@ -104,7 +114,7 @@ function refreshExecutionModeUI() {
     const info = getExecutionModeInfo();
 
     if (status) {
-        status.innerHTML = `${info.description}<div style="margin-top:6px">${info.hint}</div>`;
+        status.innerHTML = `${info.description}<div class="mt-xs">${info.hint}</div>`;
     }
     if (badge) {
         badge.className = `status-badge ${info.badgeClass}`;
@@ -154,13 +164,7 @@ function getExecutionModeInfo() {
 function setActiveDataset(dataset) {
     _activeDataset = dataset;
     try {
-        // Store everything except very large JSON (>2MB) — store reference only
-        const toStore = { ...dataset };
-        if (dataset.json.length > 2 * 1024 * 1024) {
-            toStore._oversized = true;
-            toStore.json = dataset.json; // still store it, localStorage can handle ~5MB
-        }
-        localStorage.setItem(LS_KEY, JSON.stringify(toStore));
+        localStorage.setItem(LS_KEY, JSON.stringify(dataset));
     } catch (e) {
         // localStorage full — just keep in memory
     }
@@ -199,27 +203,27 @@ function refreshSidebarLabel() {
 function refreshNoDataBanner() {
     const banner = document.getElementById('no-data-banner');
     if (!banner) return;
-    banner.classList.toggle('visible', !_activeDataset);
+    banner.classList.toggle('hidden', !!_activeDataset);
 }
 
 function refreshHomeStatus() {
     const el = document.getElementById('home-active-status');
     if (!el) return;
     if (_activeDataset) {
-        el.innerHTML = `<div class="alert alert-success" style="margin-bottom:var(--space-md)">
+        el.innerHTML = `<div class="alert alert-success mb-md">
             <i class="ti ti-database"></i>
             <div>
                 <strong>${escHtml(_activeDataset.name)}</strong> is the active dataset —
                 ${fmtBytes(_activeDataset.sizeBytes)}, loaded ${new Date(_activeDataset.loadedAt).toLocaleTimeString()}
-                <div style="margin-top:var(--space-xs)">
-                    <button class="btn-link" onclick="switchTab('tools')"><i class="ti ti-tool"></i> Go to Tools</button>
+                <div class="mt-xs">
+                    <button class="btn-link" onclick="window.location.hash='tools'"><i class="ti ti-tool"></i> Go to Tools</button>
                     &nbsp;·&nbsp;
                     <button class="btn-link" onclick="clearActiveDataset()"><i class="ti ti-trash"></i> Clear</button>
                 </div>
             </div>
         </div>`;
     } else {
-        el.innerHTML = `<div class="alert alert-info" style="margin-bottom:var(--space-md)">
+        el.innerHTML = `<div class="alert alert-info mb-md">
             <i class="ti ti-info-circle"></i>
             <span>No active dataset. Paste, upload, or generate one below.</span>
         </div>`;
@@ -229,8 +233,9 @@ function refreshHomeStatus() {
 // ── Home Tab ──────────────────────────────────────────────────────────────────
 
 function initHome() {
-    // File upload
     const fileInput = document.getElementById('home-file-input');
+    if (!fileInput) return;
+
     fileInput.addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
@@ -243,7 +248,7 @@ function initHome() {
         reader.onload = ev => {
             const json = ev.target.result;
             try {
-                JSON.parse(json); // validate
+                JSON.parse(json);
                 setActiveDataset({
                     name: file.name.replace('.json', ''),
                     type: 'upload',
@@ -261,16 +266,17 @@ function initHome() {
         reader.readAsText(file);
     });
 
-    // Drag & drop
     const dropZone = document.getElementById('home-drop-zone');
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--color-primary)'; });
-    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border-color)'; });
-    dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        dropZone.style.borderColor = 'var(--border-color)';
-        const file = e.dataTransfer.files[0];
-        if (file) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
-    });
+    if (dropZone) {
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--color-primary)'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            const file = e.dataTransfer.files[0];
+            if (file) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
+        });
+    }
 }
 
 function loadFromPaste() {
@@ -287,7 +293,6 @@ function loadFromPaste() {
             loadedAt: Date.now()
         });
     } catch {
-        // Show error WITHOUT calling refreshHomeStatus() which would overwrite it
         document.getElementById('home-active-status').innerHTML =
             alertBanner('error', '<i class="ti ti-x"></i> Invalid JSON — check your input.');
     }
@@ -299,10 +304,9 @@ function generateDataset() {
     const statusEl = document.getElementById('gen-status');
     const downloadBtn = document.getElementById('btn-download-generated');
 
-    statusEl.innerHTML = `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div> Generating ${count.toLocaleString()} records…</div>`;
+    statusEl.innerHTML = `<div class="grid-row gap-sm"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div> Generating ${count.toLocaleString()} records…</div>`;
     downloadBtn.classList.add('hidden');
 
-    // Use setTimeout to let the spinner render before blocking JS
     setTimeout(() => {
         try {
             const data = DataGenerator.generate(type, count);
@@ -320,7 +324,6 @@ function generateDataset() {
                 loadedAt: Date.now()
             });
 
-            // Count total records
             const totalRecords = Object.values(data).reduce((sum, arr) => sum + arr.length, 0);
             const collections = Object.keys(data).map(k => `${k} (${data[k].length})`).join(', ');
 
@@ -389,50 +392,50 @@ function renderByteRangeResults(container, result, originalJson) {
     html += renderExecutionSummary();
     html += renderWarnings(result);
 
-    html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
+    html += `<div class="grid-4 gap-sm mt-md mb-md">
         ${statCard(stats.collectionsScanned, 'Collections')}
         ${statCard(stats.totalObjectsFound, 'Objects Found')}
         ${statCard(fmtBytes(stats.bytesProcessed), 'Bytes Processed')}
         ${statCard(stats.processingTimeMs.toFixed(1) + ' ms', 'API Time')}
     </div>`;
 
-    html += `<div style="margin:var(--space-sm) 0 var(--space-md)">
-        <div class="text-muted" style="font-size:var(--text-xs);margin-bottom:4px">Throughput: ${throughputMBs.toFixed(1)} MB/s</div>
-        <div style="height:6px;background:var(--border-color);border-radius:var(--radius-sm);overflow:hidden">
-            <div class="throughput-fill" style="height:100%;background:var(--color-primary);border-radius:var(--radius-sm);width:0%;transition:width 0.6s ease" data-target="${barPct}%"></div>
+    html += `<div class="mb-md">
+        <div class="text-muted text-xs mb-xs">Throughput: ${throughputMBs.toFixed(1)} MB/s</div>
+        <div class="throughput-bar">
+            <div class="throughput-fill" data-target="${barPct}%"></div>
         </div>
     </div>`;
 
     for (const [name, objects] of Object.entries(collections)) {
-        const preview = objects.slice(0, 5); // show first 5 only
-        html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)">
+        const preview = objects.slice(0, 5);
+        html += `<h3 class="mt-md mb-sm">
             <i class="ti ti-folder"></i> ${escHtml(name)}
             <span class="status-badge status-info">${objects.length} objects</span>
-            ${objects.length > 5 ? `<span class="text-muted" style="font-size:var(--text-sm);font-weight:normal"> — showing first 5</span>` : ''}
+            ${objects.length > 5 ? `<span class="text-muted text-sm" style="font-weight:normal"> — showing first 5</span>` : ''}
         </h3>`;
 
         preview.forEach((obj, i) => {
             const pct = totalBytes > 0 ? ((obj.startPosition / totalBytes) * 100).toFixed(1) : 0;
             const widthPct = totalBytes > 0 ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2) : 1;
 
-            html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
-                <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
-                    <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+            html += `<div class="card obj-card">
+                <div class="obj-header grid-between">
+                    <div class="grid-row gap-sm">
                         <strong>Object #${i + 1}</strong>
                         <span class="status-badge status-info"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
                     </div>
                     <span class="status-badge status-warning">idx ${obj.itemIndex}</span>
                 </div>
-                <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border-color);font-size:var(--text-xs);color:var(--text-secondary)">
+                <div class="obj-meta">
                     Byte range: <strong>${obj.startPosition.toLocaleString()}</strong> → <strong>${(obj.startPosition + obj.length).toLocaleString()}</strong> (${pct}% into file)
-                    <div style="height:4px;background:var(--border-color);border-radius:2px;margin-top:4px;position:relative;overflow:hidden">
-                        <div style="position:absolute;height:100%;background:var(--color-warning);border-radius:2px;left:${pct}%;width:${widthPct}%;min-width:3px"></div>
+                    <div class="byte-pos-bar">
+                        <div class="byte-pos-fill" style="left:${pct}%;width:${widthPct}%"></div>
                     </div>
                 </div>
-                ${obj.hash ? `<div style="padding:4px var(--space-md);font-size:var(--text-xs);color:var(--text-muted);font-family:var(--font-mono);border-bottom:1px solid var(--border-color)">MD5: <span style="color:var(--color-primary)">${obj.hash}</span></div>` : ''}
-                <div style="position:relative">
-                    <pre style="margin:0;border-radius:0;max-height:160px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
-                    <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
+                ${obj.hash ? `<div class="obj-hash">MD5: <span class="text-primary">${obj.hash}</span></div>` : ''}
+                <div class="code-block">
+                    <pre><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                    <button class="btn-secondary copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
                 </div>
             </div>`;
         });
@@ -485,7 +488,7 @@ function renderPathResults(container, result, jsonPath, originalJson) {
     html += renderExecutionSummary();
     html += renderWarnings(result);
 
-    html += `<div class="grid-3 gap-sm" style="margin:var(--space-md) 0">
+    html += `<div class="grid-3 gap-sm mt-md mb-md">
         ${statCard(objects.length, 'Objects Found')}
         ${statCard(fmtBytes(stats.bytesProcessed), 'Bytes Processed')}
         ${statCard(stats.processingTimeMs.toFixed(1) + ' ms', 'API Time')}
@@ -498,29 +501,29 @@ function renderPathResults(container, result, jsonPath, originalJson) {
     }
 
     const preview = objects.slice(0, 5);
-    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-list"></i> Extracted Objects ${objects.length > 5 ? `<span class="text-muted" style="font-size:var(--text-sm);font-weight:normal">— showing first 5 of ${objects.length}</span>` : ''}</h3>`;
+    html += `<h3 class="mt-md mb-sm"><i class="ti ti-list"></i> Extracted Objects ${objects.length > 5 ? `<span class="text-muted text-sm" style="font-weight:normal">— showing first 5 of ${objects.length}</span>` : ''}</h3>`;
 
     preview.forEach((obj, i) => {
         const pct = totalBytes > 0 ? ((obj.startPosition / totalBytes) * 100).toFixed(1) : 0;
         const widthPct = totalBytes > 0 ? Math.max(1, (obj.length / totalBytes) * 100).toFixed(2) : 1;
 
-        html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
-            <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
-                <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+        html += `<div class="card obj-card">
+            <div class="obj-header grid-between">
+                <div class="grid-row gap-sm">
                     <strong>Object #${i + 1}</strong>
                     <span class="status-badge status-info"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
                 </div>
                 ${obj.hash ? `<span class="status-badge status-disabled" title="${obj.hash}">MD5: ${obj.hash.slice(0,8)}…</span>` : ''}
             </div>
-            <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border-color);font-size:var(--text-xs);color:var(--text-secondary)">
+            <div class="obj-meta">
                 Byte range: <strong>${obj.startPosition.toLocaleString()}</strong> → <strong>${(obj.startPosition + obj.length).toLocaleString()}</strong> (${pct}% into file)
-                <div style="height:4px;background:var(--border-color);border-radius:2px;margin-top:4px;position:relative;overflow:hidden">
-                    <div style="position:absolute;height:100%;background:var(--color-warning);border-radius:2px;left:${pct}%;width:${widthPct}%;min-width:3px"></div>
+                <div class="byte-pos-bar">
+                    <div class="byte-pos-fill" style="left:${pct}%;width:${widthPct}%"></div>
                 </div>
             </div>
-            <div style="position:relative">
-                <pre style="margin:0;border-radius:0;max-height:160px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
-                <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
+            <div class="code-block">
+                <pre><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                <button class="btn-secondary copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
             </div>
         </div>`;
     });
@@ -532,7 +535,9 @@ function renderPathResults(container, result, jsonPath, originalJson) {
 // ── Tool: Trie Index ──────────────────────────────────────────────────────────
 
 function initTrieLiveSearch() {
-    document.getElementById('trie-search-term').addEventListener('input', () => {
+    const input = document.getElementById('trie-search-term');
+    if (!input) return;
+    input.addEventListener('input', () => {
         if (!_trieIndexed) return;
         clearTimeout(_trieDebounce);
         _trieDebounce = setTimeout(runTrieIndex, 400);
@@ -554,7 +559,7 @@ async function runTrieIndex() {
             searchTerm
         });
         _trieIndexed = true;
-        liveInd.classList.remove('hidden');
+        if (liveInd) liveInd.classList.remove('hidden');
 
         if (res.success) {
             renderTrieResults(resultsDiv, res, searchTerm);
@@ -573,15 +578,15 @@ function renderTrieResults(container, result, searchTerm) {
     html += renderExecutionSummary();
     html += renderWarnings(result);
 
-    html += `<div class="grid-3 gap-sm" style="margin:var(--space-md) 0">
+    html += `<div class="grid-3 gap-sm mt-md mb-md">
         ${statCard(totalIndexed.toLocaleString(), 'Terms Indexed')}
         ${statCard(searchTerm ? `"${escHtml(searchTerm)}"` : '—', 'Search Prefix')}
         ${statCard(matches.length, 'Matches')}
     </div>`;
 
     if (matches.length > 0) {
-        html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-search"></i> Matching Terms <span class="status-badge status-enabled">${matches.length} results</span></h3>`;
-        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;padding:var(--space-md);background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm)">`;
+        html += `<h3 class="mt-md mb-sm"><i class="ti ti-search"></i> Matching Terms <span class="status-badge status-enabled">${matches.length} results</span></h3>`;
+        html += `<div class="trie-matches">`;
         matches.forEach(m => {
             const highlighted = searchTerm
                 ? escHtml(m).replace(new RegExp(`^(${escRegex(escHtml(searchTerm))})`, 'i'), '<strong>$1</strong>')
@@ -652,7 +657,6 @@ async function runSemanticSearch() {
 
 function findMatchedWordsForObject(obj, fields, searchTerm) {
     if (!obj.jsonContent) return [];
-
     try {
         const parsed = JSON.parse(obj.jsonContent);
         const words = extractWords(parsed, fields);
@@ -675,7 +679,6 @@ function extractWords(obj, fields) {
 
 function collectStrings(val, out) {
     if (typeof val === 'string') {
-        // Use pluggable Tokenizer
         PluginRegistry.Tokenizer.tokenize(val).forEach(w => out.push(w));
     } else if (Array.isArray(val)) {
         val.forEach(v => collectStrings(v, out));
@@ -695,7 +698,7 @@ function renderSemanticResults(container, result, searchTerm, fields) {
     html += renderExecutionSummary();
     html += renderWarnings(result);
 
-    html += `<div class="grid-4 gap-sm" style="margin:var(--space-md) 0">
+    html += `<div class="grid-4 gap-sm mt-md mb-md">
         ${statCard((stats.objectsIndexed ?? objects.length).toLocaleString(), 'Objects Indexed')}
         ${statCard(fields.length, 'Fields Indexed')}
         ${statCard((stats.matchesFound ?? matches.length).toLocaleString(), 'Matches Found')}
@@ -709,23 +712,23 @@ function renderSemanticResults(container, result, searchTerm, fields) {
     }
 
     const preview = matches.slice(0, 10);
-    html += `<h3 style="margin:var(--space-md) 0 var(--space-sm)"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${(stats.matchesFound ?? matches.length).toLocaleString()} results</span>${(stats.matchesFound ?? matches.length) > 10 ? ` <span class="text-muted" style="font-size:var(--text-sm);font-weight:normal">— showing first 10</span>` : ''}</h3>`;
+    html += `<h3 class="mt-md mb-sm"><i class="ti ti-brain"></i> Matching Objects <span class="status-badge status-enabled">${(stats.matchesFound ?? matches.length).toLocaleString()} results</span>${(stats.matchesFound ?? matches.length) > 10 ? ` <span class="text-muted text-sm" style="font-weight:normal">— showing first 10</span>` : ''}</h3>`;
 
     preview.forEach(({ obj, matchedWords }, i) => {
-        html += `<div class="card" style="margin-bottom:var(--space-sm);padding:0;overflow:hidden">
-            <div class="grid-between" style="padding:var(--space-sm) var(--space-md);background:var(--bg-tertiary);border-bottom:1px solid var(--border-color)">
-                <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+        html += `<div class="card obj-card">
+            <div class="obj-header grid-between">
+                <div class="grid-row gap-sm">
                     <strong>Match #${i + 1}</strong>
                     <span class="status-badge status-info"><i class="ti ti-ruler"></i> ${fmtBytes(obj.length)}</span>
                     <span class="status-badge status-warning">byte ${obj.startPosition.toLocaleString()}</span>
                 </div>
-                <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:4px">
+                <div class="match-chips">
                     ${matchedWords.slice(0, 5).map(w => `<span class="status-badge status-success"><i class="ti ti-tag"></i> ${escHtml(w)}</span>`).join('')}
                 </div>
             </div>
-            <div style="position:relative">
-                <pre style="margin:0;border-radius:0;max-height:160px;overflow-y:auto;border-left:none"><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
-                <button class="btn-secondary" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:var(--text-xs)" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
+            <div class="code-block">
+                <pre><code>${escHtml(prettyJson(obj.jsonContent || ''))}</code></pre>
+                <button class="btn-secondary copy-btn" onclick="copyCode(this)"><i class="ti ti-copy"></i> Copy</button>
             </div>
         </div>`;
     });
@@ -783,27 +786,27 @@ function renderValidateResults(container, res, originalJson) {
     html += renderExecutionSummary();
     html += renderWarnings(res);
 
-    html += `<div class="grid-2 gap-sm" style="margin:var(--space-md) 0">
+    html += `<div class="grid-2 gap-sm mt-md mb-md">
         ${statCard(fmtBytes(bytes), 'Bytes Checked')}
         ${statCard(allPass ? '✓ Valid' : '✗ Invalid', 'Overall')}
     </div>`;
 
     html += `<div class="grid-2 gap-sm">
         <div class="card" style="border-left:3px solid ${res.isValidStructure ? 'var(--color-success)' : 'var(--color-danger)'}">
-            <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center;margin-bottom:var(--space-sm)">
+            <div class="grid-row gap-sm mb-sm">
                 <i class="ti ti-${res.isValidStructure ? 'check' : 'x'}" style="color:${res.isValidStructure ? 'var(--color-success)' : 'var(--color-danger)'}"></i>
                 <strong>JSON Structure</strong>
             </div>
-            <p class="text-secondary" style="font-size:var(--text-sm);margin:0">${res.isValidStructure
+            <p class="text-secondary text-sm" style="margin:0">${res.isValidStructure
                 ? 'Balanced braces, valid syntax, parseable by JsonDocument'
                 : 'Invalid JSON — unbalanced braces, missing quotes, or syntax error'}</p>
         </div>
         <div class="card" style="border-left:3px solid ${res.isValidUtf8 ? 'var(--color-success)' : 'var(--color-danger)'}">
-            <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center;margin-bottom:var(--space-sm)">
+            <div class="grid-row gap-sm mb-sm">
                 <i class="ti ti-${res.isValidUtf8 ? 'check' : 'x'}" style="color:${res.isValidUtf8 ? 'var(--color-success)' : 'var(--color-danger)'}"></i>
                 <strong>UTF-8 Delimiter Safety</strong>
             </div>
-            <p class="text-secondary" style="font-size:var(--text-sm);margin:0">${res.isValidUtf8
+            <p class="text-secondary text-sm" style="margin:0">${res.isValidUtf8
                 ? 'No multi-byte sequences overlap JSON delimiters ({ } " \\)'
                 : `Unsafe sequence: ${escHtml(res.utf8Error || 'multi-byte character overlaps a JSON delimiter')}`}</p>
         </div>
@@ -814,14 +817,13 @@ function renderValidateResults(container, res, originalJson) {
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-// Route all API calls through the pluggable ApiTransport
 async function apiFetch(path, body) {
     return PluginRegistry.ApiTransport.fetch(path, body);
 }
 
 function renderExecutionSummary() {
     const info = getExecutionModeInfo();
-    return `<div style="margin-top:var(--space-sm);display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+    return `<div class="grid-row gap-sm mt-sm">
         <span class="status-badge ${info.badgeClass}"><i class="${info.icon}"></i> ${escHtml(info.badgeLabel)}</span>
     </div>`;
 }
@@ -834,7 +836,7 @@ function renderWarnings(result) {
 }
 
 function showLoading(container, msg) {
-    container.innerHTML = `<div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:10px;align-items:center;padding:var(--space-lg);color:var(--text-secondary)"><div class="spinner" style="width:18px;height:18px;border-width:2px"></div>${escHtml(msg)}</div>`;
+    container.innerHTML = `<div class="grid-row gap-sm p-lg text-secondary"><div class="spinner" style="width:18px;height:18px;border-width:2px"></div>${escHtml(msg)}</div>`;
 }
 
 function showError(container, msg) {
@@ -847,9 +849,9 @@ function alertBanner(type, html) {
 }
 
 function statCard(value, label) {
-    return `<div class="card" style="padding:var(--space-md)">
+    return `<div class="card p-md">
         <span class="stat-value">${value}</span>
-        <span class="text-muted" style="font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.05em">${label}</span>
+        <span class="text-muted text-xs" style="text-transform:uppercase;letter-spacing:0.05em">${label}</span>
     </div>`;
 }
 
@@ -895,15 +897,16 @@ function animateBars(container) {
 }
 
 function copyCode(btn) {
-    const pre = btn.closest('div').querySelector('pre');
+    const pre = btn.closest('.code-block').querySelector('pre');
     const text = pre.textContent || '';
     navigator.clipboard.writeText(text).then(() => {
         btn.innerHTML = '<i class="ti ti-check"></i> Copied!';
         setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copy'; }, 2000);
     }).catch(() => {
+        // Fallback for browsers without clipboard API
         const ta = document.createElement('textarea');
         ta.value = text;
-        ta.style.cssText = 'position:fixed;opacity:0';
+        ta.className = 'clipboard-fallback';
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');
@@ -1073,18 +1076,9 @@ function skipBalanced(text, startIndex, openChar, closeChar) {
 
     for (let i = startIndex + 1; i < text.length; i++) {
         const c = text[i];
-        if (escape) {
-            escape = false;
-            continue;
-        }
-        if (c === '\\') {
-            escape = true;
-            continue;
-        }
-        if (c === '"') {
-            inQuote = !inQuote;
-            continue;
-        }
+        if (escape) { escape = false; continue; }
+        if (c === '\\') { escape = true; continue; }
+        if (c === '"') { inQuote = !inQuote; continue; }
         if (inQuote) continue;
         if (c === openChar) depth += 1;
         else if (c === closeChar) depth -= 1;
@@ -1100,18 +1094,9 @@ function seekToArrayStart(text, startIndex) {
 
     for (let i = startIndex; i < text.length; i++) {
         const c = text[i];
-        if (escape) {
-            escape = false;
-            continue;
-        }
-        if (c === '\\') {
-            escape = true;
-            continue;
-        }
-        if (c === '"') {
-            inQuote = !inQuote;
-            continue;
-        }
+        if (escape) { escape = false; continue; }
+        if (c === '\\') { escape = true; continue; }
+        if (c === '"') { inQuote = !inQuote; continue; }
         if (inQuote) continue;
         if (c === '[') return i + 1;
         if (c === '{') i = skipBalanced(text, i, '{', '}');
@@ -1182,18 +1167,9 @@ function extractObjectsFromArrayText(text, arrayStartIndex) {
     for (let i = arrayStartIndex; i < text.length; i++) {
         const c = text[i];
 
-        if (escape) {
-            escape = false;
-            continue;
-        }
-        if (c === '\\') {
-            escape = true;
-            continue;
-        }
-        if (c === '"') {
-            inQuote = !inQuote;
-            continue;
-        }
+        if (escape) { escape = false; continue; }
+        if (c === '\\') { escape = true; continue; }
+        if (c === '"') { inQuote = !inQuote; continue; }
         if (inQuote) continue;
 
         if (depth === 0 && c === ']') break;
@@ -1287,9 +1263,7 @@ function browserTrieIndex(body) {
         matches,
         totalIndexed: terms.length,
         warnings: [],
-        stats: {
-            processingTimeMs: performance.now() - startedAt
-        }
+        stats: { processingTimeMs: performance.now() - startedAt }
     };
 }
 

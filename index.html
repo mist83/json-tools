@@ -8,25 +8,33 @@
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230071CE' width='100' height='100' rx='4'/><text x='50' y='72' font-size='58' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'>{}</text></svg>">
 
-    <link rel="stylesheet" href="https://ui.mullmania.com/active/style.css">
+    <link rel="stylesheet" href="https://ui.mikesendpoint.com/active/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-
     <style>
-        .container { padding: 0; }
-        [data-clickable="true"] { cursor: pointer; }
-        textarea { width: 100%; resize: vertical; }
-        input[type="text"], input[type="number"], select { width: 100%; }
-        label { display: block; margin-bottom: 4px; font-weight: var(--weight-semibold); font-size: var(--text-sm); }
-        .no-data-banner { display: none; }
-        .no-data-banner.visible { display: grid; }
-        /* Tool panels within the Tools section */
-        .tool-panel { display: none; }
-        .tool-panel.active { display: block; }
-        /* Sidebar hidden on non-tools tabs — collapse to 0 width */
-        .layout.sidebar-content { grid-template-columns: 250px 1fr; }
-        .layout.sidebar-content.no-sidebar { grid-template-columns: 0 1fr; }
-        .layout.sidebar-content.no-sidebar .sidebar { overflow: hidden; border: none; }
-        .content, .section, .card, .content-card { min-width: 0; }
+        /* App-specific utilities not in the canonical framework */
+        .text-sm { font-size: var(--text-sm); }
+        .text-xs { font-size: var(--text-xs); }
+        .gap-xs  { gap: var(--space-xs); }
+        .mb-xs   { margin-bottom: var(--space-xs); }
+
+        /* Header accent color for the "Utilities" wordmark */
+        .header-accent { color: var(--color-secondary); }
+
+        /* Header right-side badge row */
+        .header-badges {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: max-content;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+
+        /* Clipboard fallback textarea — off-screen, not visible */
+        .clipboard-fallback {
+            position: fixed;
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -34,11 +42,11 @@
 
         <!-- ── Header ──────────────────────────────────────────────── -->
         <div class="header">
-            <h1 style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;align-items:center;gap:10px;margin:0">
+            <h1>
                 <i class="ti ti-braces"></i>
-                <span>Json<span style="color:var(--color-secondary)">Utilities</span></span>
+                <span>Json<span class="header-accent">Utilities</span></span>
             </h1>
-            <div style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;align-items:center">
+            <div class="header-badges">
                 <span class="status-badge status-info"><i class="ti ti-brand-github"></i> mist83/json-tools</span>
                 <span class="status-badge status-enabled"><i class="ti ti-check"></i> 117 tests passing</span>
                 <span class="status-badge status-warning"><i class="ti ti-bolt"></i> .NET 8 · Zero-alloc</span>
@@ -47,349 +55,39 @@
         </div>
 
         <!-- ── Tabs ────────────────────────────────────────────────── -->
-        <div class="tabs">
-            <button class="tab active" data-tab="home">
-                <i class="ti ti-home"></i> Home
-            </button>
-            <button class="tab" data-tab="tools">
-                <i class="ti ti-tool"></i> Tools
-            </button>
-            <button class="tab" data-tab="about">
-                <i class="ti ti-info-circle"></i> About
-            </button>
-        </div>
+        <div id="tabs-container" class="tabs"></div>
 
-        <!-- ── Layout ──────────────────────────────────────────────── -->
-        <div class="layout sidebar-content">
+        <!-- ── Content ────────────────────────────────────────────── -->
+        <div id="content-container"></div>
 
-            <!-- Sidebar (Tools tab only) -->
-            <div class="sidebar" id="tools-sidebar">
-                <div class="sidebar-scroll">
-                    <div class="sidebar-header">Active Dataset</div>
-                    <div class="sidebar-item" id="sidebar-dataset-info" onclick="switchTab('home')">
-                        <i class="ti ti-database"></i>
-                        <span id="sidebar-dataset-label">No data loaded</span>
-                    </div>
-
-                    <div class="sidebar-header">Tools</div>
-                    <div class="sidebar-item active" data-tool="byte-range" onclick="switchTool('byte-range')">
-                        <i class="ti ti-scan"></i><span>Byte-Range Scan</span>
-                    </div>
-                    <div class="sidebar-item" data-tool="path-extract" onclick="switchTool('path-extract')">
-                        <i class="ti ti-route"></i><span>Path Extraction</span>
-                    </div>
-                    <div class="sidebar-item" data-tool="trie-index" onclick="switchTool('trie-index')">
-                        <i class="ti ti-search"></i><span>Trie Index</span>
-                    </div>
-                    <div class="sidebar-item" data-tool="semantic" onclick="switchTool('semantic')">
-                        <i class="ti ti-brain"></i><span>Semantic Search</span>
-                    </div>
-                    <div class="sidebar-item" data-tool="validate" onclick="switchTool('validate')">
-                        <i class="ti ti-shield-check"></i><span>Validate JSON</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Content -->
-            <div class="content">
-
-                <!-- ══════════════════════════════════════════════════
-                     HOME TAB
-                ══════════════════════════════════════════════════ -->
-                <div class="section active" id="content-home">
-                    <h2><i class="ti ti-home"></i> Home</h2>
-                    <p class="text-secondary">Load a JSON dataset to use across all tools, then choose where the work happens: hosted API, local API, or a browser-only privacy preview.</p>
-
-                    <!-- Active dataset status -->
-                    <div id="home-active-status"></div>
-
-                    <div class="card" style="margin-top:var(--space-md)">
-                        <h3><i class="ti ti-switch-3"></i> Execution Mode</h3>
-                        <p class="text-secondary" style="font-size:var(--text-sm)">Pick how the demo runs before you try private data. <strong>Browser Preview</strong> keeps everything in this tab. <strong>Local API</strong> targets <code>http://localhost:5968</code>. <strong>Hosted API</strong> uses the public demo backend.</p>
-                        <div class="grid-2 gap-md" style="align-items:end">
-                            <div>
-                                <label for="execution-mode">Mode:</label>
-                                <select id="execution-mode" onchange="setExecutionMode(this.value)">
-                                    <option value="auto">Auto — localhost stays local, public site uses hosted API</option>
-                                    <option value="localhost">Local API — http://localhost:5968</option>
-                                    <option value="browser">Browser Preview — keep data in this tab</option>
-                                    <option value="lambda">Hosted API — public demo backend</option>
-                                </select>
-                            </div>
-                            <div id="execution-mode-status" class="text-secondary" style="font-size:var(--text-sm)"></div>
-                        </div>
-                    </div>
-
-                    <!-- Three ways to load data -->
-                    <div class="grid-3 gap-md" style="margin-top:var(--space-md)">
-
-                        <!-- Paste -->
-                        <div class="card">
-                            <h3><i class="ti ti-clipboard"></i> Paste JSON</h3>
-                            <p class="text-secondary" style="font-size:var(--text-sm)">Paste any JSON directly.</p>
-                            <textarea id="home-paste-json" rows="8" spellcheck="false" placeholder='{"products": [...], "reviews": [...]}'></textarea>
-                            <div style="margin-top:var(--space-sm);display:grid;gap:var(--space-sm)">
-                                <input type="text" id="home-paste-name" placeholder="Dataset name (optional)">
-                                <button class="btn-primary" onclick="loadFromPaste()"><i class="ti ti-check"></i> Use This Data</button>
-                            </div>
-                        </div>
-
-                        <!-- Upload -->
-                        <div class="card">
-                            <h3><i class="ti ti-upload"></i> Upload File</h3>
-                            <p class="text-secondary" style="font-size:var(--text-sm)">Upload a local <code>.json</code> file (max 5 MB).</p>
-                            <div id="home-drop-zone" style="border:2px dashed var(--border-color);border-radius:var(--radius-sm);padding:var(--space-xl);text-align:center;cursor:pointer;margin:var(--space-sm) 0" onclick="document.getElementById('home-file-input').click()">
-                                <i class="ti ti-file-upload" style="font-size:2rem;color:var(--text-muted)"></i>
-                                <p class="text-muted" style="margin:var(--space-sm) 0 0">Click to browse or drag & drop</p>
-                            </div>
-                            <input type="file" id="home-file-input" accept=".json" style="display:none">
-                            <div id="home-upload-status" style="font-size:var(--text-sm);margin-top:var(--space-sm)"></div>
-                        </div>
-
-                        <!-- Generate -->
-                        <div class="card">
-                            <h3><i class="ti ti-wand"></i> Generate Dataset</h3>
-                            <p class="text-secondary" style="font-size:var(--text-sm)">Generate realistic fake JSON to test the tools against.</p>
-                            <div style="display:grid;gap:var(--space-sm)">
-                                <div>
-                                    <label>Type:</label>
-                                    <select id="gen-type">
-                                        <option value="ecommerce">E-commerce (products, reviews, orders)</option>
-                                        <option value="movies">Movies & TV (title, cast, description)</option>
-                                        <option value="blog">Blog (posts, authors, tags)</option>
-                                        <option value="employees">Company (departments, employees)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>Records per collection:</label>
-                                    <select id="gen-count">
-                                        <option value="50">50 — quick demo</option>
-                                        <option value="500" selected>500 — realistic</option>
-                                        <option value="2000">2,000 — stress test</option>
-                                        <option value="10000">10,000 — benchmark</option>
-                                    </select>
-                                </div>
-                                <button class="btn-primary" onclick="generateDataset()"><i class="ti ti-wand"></i> Generate</button>
-                                <button class="btn-secondary hidden" id="btn-download-generated" onclick="downloadGenerated()"><i class="ti ti-download"></i> Download as .json</button>
-                            </div>
-                            <div id="gen-status" style="margin-top:var(--space-sm);font-size:var(--text-sm)"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════════════════
-                     TOOLS TAB — wraps all 5 tool panels
-                ══════════════════════════════════════════════════ -->
-                <div class="section" id="content-tools">
-
-                    <!-- No-data banner -->
-                    <div class="alert alert-warning no-data-banner" id="no-data-banner">
-                        <i class="ti ti-alert-triangle"></i>
-                        <span>No dataset loaded. <button class="btn-link" onclick="switchTab('home')">Go to Home</button> to load one first.</span>
-                    </div>
-
-                    <!-- ── Byte-Range Scan ──────────────────────── -->
-                    <div class="tool-panel active" id="tool-byte-range">
-                        <h2><i class="ti ti-scan"></i> Byte-Range Scanning</h2>
-                        <p class="text-secondary">Extract objects from JSON collections with precise byte positions and MD5 hashes — without full deserialization.</p>
-
-                        <div style="display:grid;gap:var(--space-sm);margin-bottom:var(--space-md)">
-                            <div>
-                                <label>Target Collections <span class="text-muted" style="font-weight:normal">(comma-separated, blank = auto-detect all)</span></label>
-                                <input type="text" id="byte-range-collections" placeholder="products, reviews, orders">
-                            </div>
-                            <div style="display:grid;gap:6px">
-                                <label><input type="checkbox" id="byte-range-hashes" checked> <strong>MD5 hashes</strong> — fingerprint each object for change detection</label>
-                                <label><input type="checkbox" id="byte-range-parallel"> <strong>Parallel</strong> — scan collections concurrently (faster on large files)</label>
-                            </div>
-                        </div>
-
-                        <div class="grid-row gap-sm">
-                            <button class="btn-primary" onclick="runByteRange()"><i class="ti ti-scan"></i> Scan Collections</button>
-                        </div>
-                        <div id="byte-range-results" style="margin-top:var(--space-md)"></div>
-                    </div>
-
-                    <!-- ── Path Extraction ─────────────────────── -->
-                    <div class="tool-panel" id="tool-path-extract">
-                        <h2><i class="ti ti-route"></i> JSON Path Extraction</h2>
-                        <p class="text-secondary">Navigate nested JSON using dot-notation paths to extract specific arrays of objects.</p>
-
-                        <div style="display:grid;gap:var(--space-sm);margin-bottom:var(--space-md)">
-                            <div>
-                                <label>JSON Path:</label>
-                                <input type="text" id="path-extract-path" placeholder="company.departments.engineering.employees">
-                            </div>
-                            <div id="path-suggestions" class="text-secondary" style="font-size:var(--text-sm)"></div>
-                        </div>
-
-                        <div class="grid-row gap-sm">
-                            <button class="btn-primary" onclick="runPathExtract()"><i class="ti ti-route"></i> Extract Objects</button>
-                        </div>
-                        <div id="path-extract-results" style="margin-top:var(--space-md)"></div>
-                    </div>
-
-                    <!-- ── Trie Index ───────────────────────────── -->
-                    <div class="tool-panel" id="tool-trie-index">
-                        <h2><i class="ti ti-search"></i> Trie Indexing &amp; Live Search</h2>
-                        <p class="text-secondary">Build a prefix-tree index from all JSON values, then search by prefix. Results update as you type.</p>
-
-                        <div style="display:grid;gap:var(--space-sm);margin-bottom:var(--space-md)">
-                            <div>
-                                <label>
-                                    Search Term (prefix):
-                                    <span id="trie-live-indicator" class="text-success hidden" style="font-size:var(--text-xs);font-weight:normal">
-                                        <i class="ti ti-circle-filled pulse"></i> live
-                                    </span>
-                                </label>
-                                <input type="text" id="trie-search-term" placeholder="tech">
-                            </div>
-                            <div id="search-suggestions" class="text-secondary" style="font-size:var(--text-sm)"></div>
-                        </div>
-
-                        <div class="grid-row gap-sm">
-                            <button class="btn-primary" onclick="runTrieIndex()"><i class="ti ti-search"></i> Index &amp; Search</button>
-                        </div>
-                        <div id="trie-index-results" style="margin-top:var(--space-md)"></div>
-                    </div>
-
-                    <!-- ── Semantic Search ─────────────────────── -->
-                    <div class="tool-panel" id="tool-semantic">
-                        <h2><i class="ti ti-brain"></i> Semantic Search Index</h2>
-                        <p class="text-secondary">Build a keyword→byte-offset index from specific JSON fields. API modes use the real C# semantic index; Browser Preview mirrors the workflow locally for privacy-sensitive experimentation.</p>
-
-                        <div style="display:grid;gap:var(--space-sm);margin-bottom:var(--space-md)">
-                            <div>
-                                <label>Index These Fields <span class="text-muted" style="font-weight:normal">(click to toggle)</span></label>
-                                <div id="semantic-field-chips" style="display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;margin-top:6px"></div>
-                            </div>
-                            <div class="grid-2 gap-sm">
-                                <div>
-                                    <label>Match Engine:</label>
-                                    <select id="semantic-match-engine" onchange="PluginRegistry.MatchEngine.setActive(this.value)">
-                                        <option value="prefix">prefix — starts with query</option>
-                                        <option value="contains">contains — substring match</option>
-                                        <option value="exact">exact — case-insensitive exact</option>
-                                        <option value="fuzzy">fuzzy — tolerates typos</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>Tokenizer:</label>
-                                    <select id="semantic-tokenizer" onchange="PluginRegistry.Tokenizer.setActive(this.value)">
-                                        <option value="word-split">word-split — split on punctuation</option>
-                                        <option value="whitespace">whitespace — split on spaces only</option>
-                                        <option value="ngram-2">ngram-2 — word bigrams</option>
-                                        <option value="char-ngram-3">char-ngram-3 — character trigrams</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label>Search Term:</label>
-                                <input type="text" id="semantic-search-term" placeholder="hanks">
-                            </div>
-                            <div id="semantic-term-suggestions" class="text-secondary" style="font-size:var(--text-sm)"></div>
-                        </div>
-
-                        <div class="grid-row gap-sm">
-                            <button class="btn-primary" onclick="runSemanticSearch()"><i class="ti ti-brain"></i> Build Index &amp; Search</button>
-                        </div>
-                        <div id="semantic-results" style="margin-top:var(--space-md)"></div>
-                    </div>
-
-                    <!-- ── Validate ────────────────────────────── -->
-                    <div class="tool-panel" id="tool-validate">
-                        <h2><i class="ti ti-shield-check"></i> JSON Validation</h2>
-                        <p class="text-secondary">Validate JSON structure and UTF-8 delimiter safety. Checks for balanced braces, valid syntax, and multi-byte character safety.</p>
-
-                        <div class="grid-row gap-sm" style="margin-bottom:var(--space-md)">
-                            <button class="btn-primary" onclick="runValidate()"><i class="ti ti-shield-check"></i> Validate Active Dataset</button>
-                        </div>
-                        <div id="validate-results"></div>
-                    </div>
-
-                </div><!-- /content-tools -->
-
-                <!-- ══════════════════════════════════════════════════
-                     ABOUT TAB
-                ══════════════════════════════════════════════════ -->
-                <div class="section" id="content-about">
-                    <h2>About JsonUtilities</h2>
-                    <p class="text-secondary">A high-performance .NET 8 library for scanning large JSON files without full deserialization. Uses byte-range tracking, dot-notation path extraction, prefix-tree indexing, and semantic keyword search.</p>
-
-                    <div class="grid-3 gap-md">
-                        <div class="card">
-                            <div class="card-title"><i class="ti ti-scan"></i> Byte-Range Scanning</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Extract objects with precise byte positions using <code>ArrayPool</code> buffers and zero-copy <code>Span&lt;T&gt;</code> slicing. Parallel processing via <code>Channel&lt;T&gt;</code>.</p>
-                        </div>
-                        <div class="card">
-                            <div class="card-title"><i class="ti ti-route"></i> Path Extraction</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Navigate deeply nested JSON using dot-notation paths like <code>company.departments.engineering.employees</code>. Case-insensitive by default.</p>
-                        </div>
-                        <div class="card">
-                            <div class="card-title"><i class="ti ti-search"></i> Trie Indexing</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Generic prefix-tree with O(prefix_length) search. Supports unicode, duplicates, exact-match, and batch construction via <code>TrieBuilder&lt;T&gt;</code>.</p>
-                        </div>
-                        <div class="card">
-                            <div class="card-title"><i class="ti ti-brain"></i> Semantic Search</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Index specific fields (title, cast, description) by keyword → byte offset. The demo now exposes the real semantic-index path in API modes, with a browser-only preview for private data.</p>
-                        </div>
-                        <div class="card">
-                            <div class="card-title"><i class="ti ti-shield-check"></i> UTF-8 Validation</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Validates delimiter safety for multi-byte UTF-8 sequences. Ensures <code>{</code>, <code>}</code>, <code>"</code>, <code>\</code> bytes are never part of a multi-byte character.</p>
-                        </div>
-                        <div class="card">
-                            <div class="card-title"><i class="ti ti-code"></i> Fluent API</div>
-                            <p class="text-secondary" style="font-size:var(--text-sm);margin-top:var(--space-sm)">Chainable builder: <code>JsonTools.Scan(stream).ForCollections("products").WithHashes().WithContent().RunAsync()</code></p>
-                        </div>
-                    </div>
-
-                    <div class="content-card">
-                        <h3><i class="ti ti-lock"></i> Demo Modes</h3>
-                        <p class="text-secondary" style="font-size:var(--text-sm)">You can now try the same UI three ways: hosted API, localhost API, or Browser Preview. That makes the privacy story clearer today and creates a clean stepping stone toward a future C# WebAssembly build where the shared request/response contract stays the same but the execution target moves into the browser.</p>
-                    </div>
-
-                    <div class="content-card" style="margin-top:var(--space-md)">
-                        <h3><i class="ti ti-terminal"></i> Quick Start</h3>
-                        <p class="text-secondary" style="font-size:var(--text-sm)">Run the demo locally and open <code>http://localhost:5968</code>. Swagger stays available at <code>/swagger</code>.</p>
-                        <pre><code>// Byte-range scan
-var result = await JsonTools.Scan(stream)
-    .ForCollections("products", "reviews")
-    .WithHashes()
-    .WithContent()
-    .RunAsync();
-
-// Path extraction
-var employees = await JsonTools.ExtractPath(stream,
-    "company.departments.engineering.employees")
-    .WithContent()
-    .RunAsync();
-
-// Semantic search index
-var index = await JsonTools.BuildSemanticIndex(filePath,
-    new SemanticIndexOptions {
-        IndexedFields = ["title", "cast", "description"],
-        IndexNGrams = true
-    });
-var matches = index.SearchObjects("hanks", filePath);</code></pre>
-                    </div>
-
-                    <div class="content-card">
-                        <h3><i class="ti ti-test-pipe"></i> Test Suite</h3>
-                        <p class="text-secondary" style="font-size:var(--text-sm)">117 xUnit tests across 7 test classes — all passing.</p>
-                        <div style="margin-top:var(--space-sm);display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px">
-                            <span class="status-badge status-enabled"><i class="ti ti-check"></i> 117 passing</span>
-                            <span class="status-badge status-info"><i class="ti ti-x"></i> 0 failing</span>
-                            <span class="status-badge status-warning"><i class="ti ti-clock"></i> ~33ms</span>
-                        </div>
-                    </div>
-                </div>
-
-            </div><!-- /content -->
-        </div><!-- /layout -->
     </div><!-- /container -->
 
+    <script src="https://ui.mikesendpoint.com/ui.js"></script>
     <script src="plugin-registry.js"></script>
     <script src="data-generator.js"></script>
     <script src="app.js"></script>
+
+    <script>
+        window.addEventListener('ui-ready', async () => {
+            const sitemap = {
+                tabs: [
+                    { id: 'home',  label: 'Home',  icon: 'ti ti-home',        htmlSource: '/tabs/home.html' },
+                    { id: 'tools', label: 'Tools', icon: 'ti ti-tool',        htmlSource: '/tabs/tools.html' },
+                    { id: 'about', label: 'About', icon: 'ti ti-info-circle', htmlSource: '/tabs/about.html' }
+                ]
+            };
+
+            window._tabsEverywhere = new TabsEverywhere({
+                tabsContainerId: 'tabs-container',
+                contentContainerId: 'content-container',
+                sitemap
+            });
+
+            await window._tabsEverywhere.init();
+
+            // Bootstrap app after first tab is loaded
+            initApp();
+        });
+    </script>
 </body>
 </html>
