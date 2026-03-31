@@ -46,8 +46,8 @@ module.exports = {
             name: 'Home content is loaded by default',
             async fn(page) {
                 await waitForAppReady(page);
-                const active = await exists(page, '#content-home');
-                if (!active) throw new Error('#content-home should be present after load');
+                const homeInput = await exists(page, '#home-paste-json');
+                if (!homeInput) throw new Error('#home-paste-json should be present after load');
             }
         },
         {

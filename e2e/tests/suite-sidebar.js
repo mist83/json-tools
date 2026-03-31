@@ -1,11 +1,9 @@
 // Suite: Sidebar Functionality
 // Tests the new sidebar within the Tools tab (dataset label, tool navigation)
-const { assertContains, exists, countElements, sleep, waitForText, switchTab, waitForAppReady } = require('./helpers');
+const { assertContains, exists, countElements, sleep, waitForText, switchTab, waitForAppReady, freshLoad } = require('./helpers');
 
 async function loadDataAndGoToTools(page) {
-    await page.evaluate(() => localStorage.clear());
-    await page.reload({ waitUntil: 'networkidle2' });
-    await waitForAppReady(page);
+    await freshLoad(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
@@ -52,8 +50,8 @@ module.exports = {
                 await switchTab(page, 'tools');
                 await page.click('#sidebar-dataset-info');
                 await sleep(500);
-                const homeContent = await exists(page, '#content-home');
-                if (!homeContent) throw new Error('Clicking sidebar dataset item should navigate to Home');
+                const homeInput = await exists(page, '#home-paste-json');
+                if (!homeInput) throw new Error('Clicking sidebar dataset item should navigate to Home');
             }
         },
         {

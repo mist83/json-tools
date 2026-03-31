@@ -1,10 +1,8 @@
 // Suite: Tools Tab & Sidebar Navigation
-const { assertContains, exists, countElements, sleep, waitForText, switchTab, waitForAppReady } = require('./helpers');
+const { assertContains, exists, countElements, sleep, waitForText, switchTab, waitForAppReady, freshLoad } = require('./helpers');
 
 async function loadDataAndGoToTools(page) {
-    await page.evaluate(() => localStorage.clear());
-    await page.reload({ waitUntil: 'networkidle2' });
-    await waitForAppReady(page);
+    await freshLoad(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
@@ -20,8 +18,8 @@ module.exports = {
             async fn(page) {
                 await waitForAppReady(page);
                 await switchTab(page, 'tools');
-                const toolsContent = await exists(page, '#content-tools');
-                if (!toolsContent) throw new Error('#content-tools not present after clicking Tools tab');
+                const toolsSidebar = await exists(page, '#tools-sidebar');
+                if (!toolsSidebar) throw new Error('#tools-sidebar not present after clicking Tools tab');
             }
         },
         {
@@ -37,26 +35,31 @@ module.exports = {
             name: 'Sidebar is not present on Home tab',
             async fn(page) {
                 await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await switchTab(page, 'home');
-                const sidebar = await exists(page, '#tools-sidebar');
-                if (sidebar) throw new Error('Sidebar should not be present on Home tab');
+                const toolsWrapperVisible = await page.evaluate(() => {
+                    const wrapper = document.querySelector('[data-tab-id="tools"]');
+                    return !!wrapper && wrapper.classList.contains('display-block');
+                });
+                if (toolsWrapperVisible) throw new Error('Tools wrapper should not remain active on Home tab');
             }
         },
         {
             name: 'Sidebar is not present on About tab',
             async fn(page) {
-                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await switchTab(page, 'about');
-                const sidebar = await exists(page, '#tools-sidebar');
-                if (sidebar) throw new Error('Sidebar should not be present on About tab');
+                const toolsWrapperVisible = await page.evaluate(() => {
+                    const wrapper = document.querySelector('[data-tab-id="tools"]');
+                    return !!wrapper && wrapper.classList.contains('display-block');
+                });
+                if (toolsWrapperVisible) throw new Error('Tools wrapper should not remain active on About tab');
             }
         },
         {
             name: 'No-data banner shows when no dataset loaded',
             async fn(page) {
-                await page.evaluate(() => localStorage.clear());
-                await page.reload({ waitUntil: 'networkidle2' });
-                await waitForAppReady(page);
+                await freshLoad(page);
                 await switchTab(page, 'tools');
                 const bannerHidden = await page.$eval('#no-data-banner', el => el.classList.contains('hidden'));
                 if (bannerHidden) throw new Error('No-data banner should be visible when no dataset loaded');
@@ -105,8 +108,8 @@ module.exports = {
                 await switchTab(page, 'tools');
                 await page.click('#sidebar-dataset-info');
                 await sleep(500);
-                const homeContent = await exists(page, '#content-home');
-                if (!homeContent) throw new Error('Clicking dataset label should navigate to Home tab');
+                const homeInput = await exists(page, '#home-paste-json');
+                if (!homeInput) throw new Error('Clicking dataset label should navigate to Home tab');
             }
         },
         {

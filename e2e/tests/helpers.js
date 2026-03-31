@@ -1,6 +1,10 @@
 // Shared helpers for all E2E test suites
 
 const API_TIMEOUT = 20000;
+const TAB_READY_SELECTORS = {
+    home: '#home-paste-json',
+    tools: '#tools-sidebar',
+};
 
 /**
  * Click a tab by its data-tab-id value and wait for it to become active.
@@ -8,22 +12,43 @@ const API_TIMEOUT = 20000;
  * on the content wrapper div when a tab is active.
  */
 async function switchTab(page, tabName) {
-    await page.click(`#tab-${tabName}`);
-    // Poll until the content wrapper exists AND has display-block class
+    const button = await page.$(`#tab-${tabName}`);
+    if (!button) {
+        throw new Error(`Tab button #tab-${tabName} not found`);
+    }
+    await button.click();
+
+    const readySelector = TAB_READY_SELECTORS[tabName] || null;
     const start = Date.now();
     while (Date.now() - start < 10000) {
         try {
-            const ready = await page.evaluate((id) => {
-                const wrappers = Array.from(document.querySelectorAll(`[data-tab-id="${id}"]`));
-                const wrapper = wrappers.find(el => el.id !== `tab-${id}`);
+            const ready = await page.evaluate(({ id, selector }) => {
+                const wrapper = document.querySelector(`[data-tab-id="${id}"].display-block`);
                 if (!wrapper) return false;
-                return wrapper.classList.contains('display-block');
-            }, tabName);
+                if (!selector) return true;
+                return Boolean(wrapper.querySelector(selector) || document.querySelector(selector));
+            }, { id: tabName, selector: readySelector });
             if (ready) break;
         } catch (_) {}
         await sleep(200);
     }
     await sleep(200);
+}
+
+async function freshLoad(page, { clearStorage = true, clearHash = true } = {}) {
+    await page.evaluate(({ shouldClearStorage, shouldClearHash }) => {
+        if (shouldClearHash) {
+            window.location.hash = '';
+        }
+        if (shouldClearStorage) {
+            localStorage.clear();
+        }
+    }, {
+        shouldClearStorage: clearStorage,
+        shouldClearHash: clearHash,
+    });
+    await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
 }
 
 /**
@@ -130,15 +155,17 @@ async function exists(page, selector) {
  * Wait for the page to fully load including TabsEverywhere init and first tab content.
  */
 async function waitForAppReady(page, timeout = 15000) {
-    // Wait for TabsEverywhere to be defined and tabs to render
     const start = Date.now();
     while (Date.now() - start < timeout) {
         try {
             const ready = await page.evaluate(() => {
+                const activeTab = document.querySelector('.tab.active');
+                const homeWrapper = document.querySelector('[data-tab-id="home"].display-block');
                 return typeof window.TabsEverywhere !== 'undefined'
-                    && !!document.querySelector('.tab.active')
-                    && document.getElementById('content-container') !== null
-                    && document.getElementById('content-container').innerHTML.trim().length > 50;
+                    && !!activeTab
+                    && activeTab.dataset.tabId === 'home'
+                    && !!homeWrapper
+                    && !!homeWrapper.querySelector('#home-paste-json');
             });
             if (ready) break;
         } catch (_) {}
@@ -165,5 +192,6 @@ module.exports = {
     waitForText,
     exists,
     waitForAppReady,
+    freshLoad,
     sleep,
 };
