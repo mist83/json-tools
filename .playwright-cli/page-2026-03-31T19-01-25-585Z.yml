@@ -1,0 +1,101 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading " JsonUtilities" [level=1] [ref=e4]:
+      - generic [ref=e5]: 
+      - generic [ref=e6]: JsonUtilities
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: 
+        - text: mist83/json-tools
+      - generic [ref=e10]:
+        - generic [ref=e11]: 
+        - text: 117 tests passing
+      - generic [ref=e12]:
+        - generic [ref=e13]: 
+        - text: .NET 8 · Zero-alloc
+      - generic [ref=e14]:
+        - generic [ref=e15]: 
+        - text: Auto mode
+  - generic [ref=e16]:
+    - generic [ref=e17] [cursor=pointer]:
+      - generic [ref=e18]: 
+      - text: Home
+    - generic [ref=e19] [cursor=pointer]:
+      - generic [ref=e20]: 
+      - text: Tools
+    - generic [ref=e21] [cursor=pointer]:
+      - generic [ref=e22]: 
+      - text: About
+  - generic [ref=e26]:
+    - heading " Home" [level=2] [ref=e27]:
+      - generic [ref=e28]: 
+      - text: Home
+    - paragraph [ref=e29]: "Load a JSON dataset to use across all tools, then choose where the work happens: hosted API, local API, or a browser-only privacy preview."
+    - generic [ref=e30]:
+      - heading " Execution Mode" [level=3] [ref=e31]:
+        - generic [ref=e32]: 
+        - text: Execution Mode
+      - paragraph [ref=e33]:
+        - text: Pick how the demo runs before you try private data.
+        - strong [ref=e34]: Browser Preview
+        - text: keeps everything in this tab.
+        - strong [ref=e35]: Local API
+        - text: targets
+        - code [ref=e36]: http://localhost:5968
+        - text: .
+        - strong [ref=e37]: Hosted API
+        - text: uses the public demo backend.
+      - generic [ref=e39]:
+        - text: "Mode:"
+        - combobox "Mode:" [ref=e40]:
+          - option "Auto — localhost stays local, public site uses hosted API" [selected]
+          - option "Local API — http://localhost:5968"
+          - option "Browser Preview — keep data in this tab"
+          - option "Hosted API — public demo backend"
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - heading " Paste JSON" [level=3] [ref=e43]:
+          - generic [ref=e44]: 
+          - text: Paste JSON
+        - paragraph [ref=e45]: Paste any JSON directly.
+        - 'textbox "{\"products\": [...], \"reviews\": [...]}" [ref=e46]'
+        - generic [ref=e47]:
+          - textbox "Dataset name (optional)" [ref=e48]
+          - button " Use This Data" [ref=e49] [cursor=pointer]:
+            - generic [ref=e50]: 
+            - text: Use This Data
+      - generic [ref=e51]:
+        - heading " Upload File" [level=3] [ref=e52]:
+          - generic [ref=e53]: 
+          - text: Upload File
+        - paragraph [ref=e54]:
+          - text: Upload a local
+          - code [ref=e55]: .json
+          - text: file (max 5 MB).
+        - generic [ref=e56] [cursor=pointer]:
+          - generic [ref=e57]: 
+          - paragraph [ref=e58]: Click to browse or drag & drop
+      - generic [ref=e59]:
+        - heading " Generate Dataset" [level=3] [ref=e60]:
+          - generic [ref=e61]: 
+          - text: Generate Dataset
+        - paragraph [ref=e62]: Generate realistic fake JSON to test the tools against.
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - text: "Type:"
+            - combobox [ref=e65]:
+              - option "E-commerce (products, reviews, orders)" [selected]
+              - option "Movies & TV (title, cast, description)"
+              - option "Blog (posts, authors, tags)"
+              - option "Company (departments, employees)"
+          - generic [ref=e66]:
+            - text: "Records per collection:"
+            - combobox [ref=e67]:
+              - option "50 — quick demo"
+              - option "500 — realistic" [selected]
+              - option "2,000 — stress test"
+              - option "10,000 — benchmark"
+          - button " Generate" [ref=e68] [cursor=pointer]:
+            - generic [ref=e69]: 
+            - text: Generate
+          - text: 

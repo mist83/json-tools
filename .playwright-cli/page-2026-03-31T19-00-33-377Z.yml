@@ -1,0 +1,116 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading " JsonUtilities" [level=1] [ref=e4]:
+      - generic [ref=e5]: 
+      - generic [ref=e6]: JsonUtilities
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: 
+        - text: mist83/json-tools
+      - generic [ref=e10]:
+        - generic [ref=e11]: 
+        - text: 117 tests passing
+      - generic [ref=e12]:
+        - generic [ref=e13]: 
+        - text: .NET 8 · Zero-alloc
+      - generic [ref=e14]:
+        - generic [ref=e128]: 
+        - text: Auto mode
+  - generic [ref=e16]:
+    - generic [ref=e17] [cursor=pointer]:
+      - generic [ref=e18]: 
+      - text: Home
+    - generic [ref=e19] [cursor=pointer]:
+      - generic [ref=e20]: 
+      - text: Tools
+    - generic [ref=e21] [cursor=pointer]:
+      - generic [ref=e22]: 
+      - text: About
+  - generic [ref=e23]:
+    - generic [ref=e26]:
+      - heading " Home" [level=2] [ref=e27]:
+        - generic [ref=e28]: 
+        - text: Home
+      - paragraph [ref=e29]: "Load a JSON dataset to use across all tools, then choose where the work happens: hosted API, local API, or a browser-only privacy preview."
+      - generic [ref=e129]:
+        - generic [ref=e130]: 
+        - generic [ref=e131]: No active dataset. Paste, upload, or generate one below.
+      - generic [ref=e34]:
+        - heading " Execution Mode" [level=3] [ref=e35]:
+          - generic [ref=e36]: 
+          - text: Execution Mode
+        - paragraph [ref=e37]:
+          - text: Pick how the demo runs before you try private data.
+          - strong [ref=e38]: Browser Preview
+          - text: keeps everything in this tab.
+          - strong [ref=e39]: Local API
+          - text: targets
+          - code [ref=e40]: http://localhost:5968
+          - text: .
+          - strong [ref=e41]: Hosted API
+          - text: uses the public demo backend.
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - text: "Mode:"
+            - combobox "Mode:" [ref=e44]:
+              - option "Auto — localhost stays local, public site uses hosted API" [selected]
+              - option "Local API — http://localhost:5968"
+              - option "Browser Preview — keep data in this tab"
+              - option "Hosted API — public demo backend"
+          - generic [ref=e45]:
+            - strong [ref=e132]: Auto mode.
+            - text: Localhost stays local and the public site stays hosted, so the safest default usually just works.
+            - generic [ref=e133]:
+              - text: "On"
+              - code [ref=e134]: localhost:5968
+              - text: the UI uses the same origin. On other localhost ports it targets
+              - code [ref=e135]: http://localhost:5968
+              - text: .
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - heading " Paste JSON" [level=3] [ref=e52]:
+            - generic [ref=e53]: 
+            - text: Paste JSON
+          - paragraph [ref=e54]: Paste any JSON directly.
+          - 'textbox "{\"products\": [...], \"reviews\": [...]}" [ref=e55]'
+          - generic [ref=e56]:
+            - textbox "Dataset name (optional)" [ref=e57]
+            - button " Use This Data" [ref=e58] [cursor=pointer]:
+              - generic [ref=e59]: 
+              - text: Use This Data
+        - generic [ref=e60]:
+          - heading " Upload File" [level=3] [ref=e61]:
+            - generic [ref=e62]: 
+            - text: Upload File
+          - paragraph [ref=e63]:
+            - text: Upload a local
+            - code [ref=e64]: .json
+            - text: file (max 5 MB).
+          - generic [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: 
+            - paragraph [ref=e67]: Click to browse or drag & drop
+        - generic [ref=e68]:
+          - heading " Generate Dataset" [level=3] [ref=e69]:
+            - generic [ref=e70]: 
+            - text: Generate Dataset
+          - paragraph [ref=e71]: Generate realistic fake JSON to test the tools against.
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - text: "Type:"
+              - combobox [ref=e74]:
+                - option "E-commerce (products, reviews, orders)" [selected]
+                - option "Movies & TV (title, cast, description)"
+                - option "Blog (posts, authors, tags)"
+                - option "Company (departments, employees)"
+            - generic [ref=e75]:
+              - text: "Records per collection:"
+              - combobox [ref=e76]:
+                - option "50 — quick demo"
+                - option "500 — realistic" [selected]
+                - option "2,000 — stress test"
+                - option "10,000 — benchmark"
+            - button " Generate" [ref=e77] [cursor=pointer]:
+              - generic [ref=e78]: 
+              - text: Generate
+            - text: 
+    - text:                  

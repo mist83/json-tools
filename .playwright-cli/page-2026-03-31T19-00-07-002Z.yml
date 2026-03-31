@@ -1,0 +1,81 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading " JsonUtilities" [level=1] [ref=e4]:
+      - generic [ref=e5]: 
+      - generic [ref=e6]: JsonUtilities
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: 
+        - text: mist83/json-tools
+      - generic [ref=e10]:
+        - generic [ref=e11]: 
+        - text: 117 tests passing
+      - generic [ref=e12]:
+        - generic [ref=e13]: 
+        - text: .NET 8 · Zero-alloc
+      - generic [ref=e14]:
+        - generic [ref=e79]: 
+        - text: Auto mode
+  - generic [ref=e16]:
+    - generic [ref=e17] [cursor=pointer]:
+      - generic [ref=e18]: 
+      - text: Home
+    - generic [ref=e19] [cursor=pointer]:
+      - generic [ref=e20]: 
+      - text: Tools
+    - generic [ref=e21] [cursor=pointer]:
+      - generic [ref=e22]: 
+      - text: About
+  - generic [ref=e23]:
+    - text:          
+    - generic [ref=e82]:
+      - generic [ref=e84]:
+        - generic [ref=e85]: Active Dataset
+        - generic [ref=e86] [cursor=pointer]:
+          - generic [ref=e87]: 
+          - generic [ref=e88]: No data loaded
+        - generic [ref=e89]: Tools
+        - generic [ref=e90] [cursor=pointer]:
+          - generic [ref=e91]: 
+          - generic [ref=e92]: Byte-Range Scan
+        - generic [ref=e93] [cursor=pointer]:
+          - generic [ref=e94]: 
+          - generic [ref=e95]: Path Extraction
+        - generic [ref=e96] [cursor=pointer]:
+          - generic [ref=e97]: 
+          - generic [ref=e98]: Trie Index
+        - generic [ref=e99] [cursor=pointer]:
+          - generic [ref=e100]: 
+          - generic [ref=e101]: Semantic Search
+        - generic [ref=e102] [cursor=pointer]:
+          - generic [ref=e103]: 
+          - generic [ref=e104]: Validate JSON
+      - generic [ref=e105]:
+        - generic [ref=e106]:
+          - generic [ref=e107]: 
+          - generic [ref=e108]:
+            - text: No dataset loaded.
+            - button "Go to Home" [ref=e109] [cursor=pointer]
+            - text: to load one first.
+        - generic [ref=e110]:
+          - heading " Byte-Range Scanning" [level=2] [ref=e111]:
+            - generic [ref=e112]: 
+            - text: Byte-Range Scanning
+          - paragraph [ref=e113]: Extract objects from JSON collections with precise byte positions and MD5 hashes — without full deserialization.
+          - generic [ref=e114]:
+            - generic [ref=e115]:
+              - generic [ref=e116]: Target Collections (comma-separated, blank = auto-detect all)
+              - textbox "products, reviews, orders" [ref=e117]
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - checkbox "MD5 hashes — fingerprint each object for change detection" [checked] [ref=e120]
+                - strong [ref=e121]: MD5 hashes
+                - text: — fingerprint each object for change detection
+              - generic [ref=e122]:
+                - checkbox "Parallel — scan collections concurrently (faster on large files)" [ref=e123]
+                - strong [ref=e124]: Parallel
+                - text: — scan collections concurrently (faster on large files)
+          - button " Scan Collections" [ref=e126] [cursor=pointer]:
+            - generic [ref=e127]: 
+            - text: Scan Collections
+        - text:         
