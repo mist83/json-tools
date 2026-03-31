@@ -1,15 +1,15 @@
 // Suite: JSON Path Extraction Tool
-const { assertContains, exists, sleep, waitForResults, waitForText } = require('./helpers');
+const { assertContains, exists, sleep, waitForResults, waitForText, switchTab, waitForAppReady } = require('./helpers');
 
 async function setupWithData(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
     await waitForText(page, '#gen-status', 'Generated', 8000);
-    await page.click('[data-tab="tools"]');
-    await sleep(200);
+    await switchTab(page, 'tools');
     await page.click('[data-tool="path-extract"]');
     await sleep(300);
 }
@@ -20,6 +20,8 @@ module.exports = {
         {
             name: 'Path Extraction tool panel exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const el = await exists(page, '#tool-path-extract');
                 if (!el) throw new Error('#tool-path-extract not found');
             }
@@ -27,6 +29,9 @@ module.exports = {
         {
             name: 'Path input field exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                await page.click('[data-tool="path-extract"]');
                 const el = await exists(page, '#path-extract-path');
                 if (!el) throw new Error('#path-extract-path not found');
             }
@@ -36,7 +41,8 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="path-extract"]');
                 await sleep(200);
                 await page.$eval('#path-extract-path', el => { el.value = 'products'; });
@@ -58,7 +64,6 @@ module.exports = {
             name: 'Clicking suggested path populates input',
             async fn(page) {
                 await setupWithData(page);
-                // Click first btn-link in path-suggestions
                 await page.click('#path-suggestions .btn-link');
                 await sleep(200);
                 const val = await page.$eval('#path-extract-path', el => el.value);
@@ -116,7 +121,6 @@ module.exports = {
                 await page.$eval('#path-extract-path', el => { el.value = 'nonexistent.path.here'; });
                 await page.click('button[onclick="runPathExtract()"]');
                 const html = await waitForResults(page, 'path-extract-results');
-                // Either 0 objects found or warning
                 const hasWarning = html.includes('alert-warning') || html.includes('0') || html.includes('No objects');
                 if (!hasWarning) throw new Error('Should show warning or 0 objects for invalid path');
             }
@@ -139,7 +143,6 @@ module.exports = {
                 await page.$eval('#path-extract-path', el => { el.value = 'products'; });
                 await page.click('button[onclick="runPathExtract()"]');
                 const html = await waitForResults(page, 'path-extract-results');
-                // 50 products → should show "first 5 of 50"
                 assertContains(html, 'first 5 of');
             }
         },

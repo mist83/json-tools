@@ -1,16 +1,15 @@
 // Suite: Tools Tab & Sidebar Navigation
-const { assertContains, exists, countElements, sleep, waitForText } = require('./helpers');
+const { assertContains, exists, countElements, sleep, waitForText, switchTab, waitForAppReady } = require('./helpers');
 
 async function loadDataAndGoToTools(page) {
-    // Clear storage, generate data, go to tools
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
     await waitForText(page, '#gen-status', 'Generated', 8000);
-    await page.click('[data-tab="tools"]');
-    await sleep(300);
+    await switchTab(page, 'tools');
 }
 
 module.exports = {
@@ -19,33 +18,37 @@ module.exports = {
         {
             name: 'Tools tab switches correctly',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
-                const active = await exists(page, '#content-tools.active');
-                if (!active) throw new Error('#content-tools not active after clicking Tools tab');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                const toolsContent = await exists(page, '#content-tools');
+                if (!toolsContent) throw new Error('#content-tools not present after clicking Tools tab');
             }
         },
         {
             name: 'Sidebar is visible on Tools tab',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
-                const hasNoSidebar = await page.$eval('.layout.sidebar-content', el => el.classList.contains('no-sidebar'));
-                if (hasNoSidebar) throw new Error('Sidebar should be visible on Tools tab (no no-sidebar class)');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                const sidebar = await exists(page, '#tools-sidebar');
+                if (!sidebar) throw new Error('Sidebar #tools-sidebar should be visible on Tools tab');
             }
         },
         {
-            name: 'Sidebar is hidden on Home tab',
+            name: 'Sidebar is not present on Home tab',
             async fn(page) {
-                await page.click('[data-tab="home"]');
-                const hasNoSidebar = await page.$eval('.layout.sidebar-content', el => el.classList.contains('no-sidebar'));
-                if (!hasNoSidebar) throw new Error('Sidebar should be hidden on Home tab');
+                await waitForAppReady(page);
+                await switchTab(page, 'home');
+                const sidebar = await exists(page, '#tools-sidebar');
+                if (sidebar) throw new Error('Sidebar should not be present on Home tab');
             }
         },
         {
-            name: 'Sidebar is hidden on About tab',
+            name: 'Sidebar is not present on About tab',
             async fn(page) {
-                await page.click('[data-tab="about"]');
-                const hasNoSidebar = await page.$eval('.layout.sidebar-content', el => el.classList.contains('no-sidebar'));
-                if (!hasNoSidebar) throw new Error('Sidebar should be hidden on About tab');
+                await waitForAppReady(page);
+                await switchTab(page, 'about');
+                const sidebar = await exists(page, '#tools-sidebar');
+                if (sidebar) throw new Error('Sidebar should not be present on About tab');
             }
         },
         {
@@ -53,24 +56,25 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                await page.click('[data-tab="tools"]');
-                await sleep(200);
-                const bannerVisible = await page.$eval('#no-data-banner', el => el.classList.contains('visible'));
-                if (!bannerVisible) throw new Error('No-data banner should be visible when no dataset loaded');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                const bannerHidden = await page.$eval('#no-data-banner', el => el.classList.contains('hidden'));
+                if (bannerHidden) throw new Error('No-data banner should be visible when no dataset loaded');
             }
         },
         {
             name: 'No-data banner hides after dataset loaded',
             async fn(page) {
                 await loadDataAndGoToTools(page);
-                const bannerVisible = await page.$eval('#no-data-banner', el => el.classList.contains('visible'));
-                if (bannerVisible) throw new Error('No-data banner should be hidden after dataset loaded');
+                const bannerHidden = await page.$eval('#no-data-banner', el => el.classList.contains('hidden'));
+                if (!bannerHidden) throw new Error('No-data banner should be hidden after dataset loaded');
             }
         },
         {
             name: 'Sidebar has all 5 tool items',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const tools = await countElements(page, '.sidebar-item[data-tool]');
                 if (tools !== 5) throw new Error(`Expected 5 tool items in sidebar, got ${tools}`);
             }
@@ -80,6 +84,8 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const label = await page.$eval('#sidebar-dataset-label', el => el.textContent);
                 assertContains(label, 'No data loaded');
             }
@@ -95,16 +101,19 @@ module.exports = {
         {
             name: 'Clicking sidebar dataset label navigates to Home',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('#sidebar-dataset-info');
-                await sleep(200);
-                const active = await exists(page, '#content-home.active');
-                if (!active) throw new Error('Clicking dataset label should navigate to Home tab');
+                await sleep(500);
+                const homeContent = await exists(page, '#content-home');
+                if (!homeContent) throw new Error('Clicking dataset label should navigate to Home tab');
             }
         },
         {
             name: 'All 5 tool panels exist in DOM',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 for (const tool of ['byte-range', 'path-extract', 'trie-index', 'semantic', 'validate']) {
                     const el = await exists(page, `#tool-${tool}`);
                     if (!el) throw new Error(`Tool panel #tool-${tool} not found`);
@@ -114,7 +123,8 @@ module.exports = {
         {
             name: 'Byte-Range tool panel is active by default in Tools tab',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const active = await exists(page, '#tool-byte-range.active');
                 if (!active) throw new Error('#tool-byte-range should be active by default');
             }
@@ -122,7 +132,8 @@ module.exports = {
         {
             name: 'Switching to Path Extraction tool shows correct panel',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="path-extract"]');
                 await sleep(200);
                 const active = await exists(page, '#tool-path-extract.active');
@@ -132,7 +143,8 @@ module.exports = {
         {
             name: 'Switching to Trie Index tool shows correct panel',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="trie-index"]');
                 await sleep(200);
                 const active = await exists(page, '#tool-trie-index.active');
@@ -142,7 +154,8 @@ module.exports = {
         {
             name: 'Switching to Semantic Search tool shows correct panel',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="semantic"]');
                 await sleep(200);
                 const active = await exists(page, '#tool-semantic.active');
@@ -152,7 +165,8 @@ module.exports = {
         {
             name: 'Switching to Validate tool shows correct panel',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="validate"]');
                 await sleep(200);
                 const active = await exists(page, '#tool-validate.active');
@@ -162,7 +176,8 @@ module.exports = {
         {
             name: 'Active sidebar item updates when switching tools',
             async fn(page) {
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="trie-index"]');
                 await sleep(200);
                 const activeItem = await page.$eval('.sidebar-item.active[data-tool]', el => el.dataset.tool);

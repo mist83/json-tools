@@ -1,15 +1,15 @@
 // Suite: Trie Index & Live Search Tool
-const { assertContains, exists, sleep, waitForResults, waitForText } = require('./helpers');
+const { assertContains, exists, sleep, waitForResults, waitForText, switchTab, waitForAppReady } = require('./helpers');
 
 async function setupWithData(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
     await waitForText(page, '#gen-status', 'Generated', 8000);
-    await page.click('[data-tab="tools"]');
-    await sleep(200);
+    await switchTab(page, 'tools');
     await page.click('[data-tool="trie-index"]');
     await sleep(200);
 }
@@ -20,6 +20,8 @@ module.exports = {
         {
             name: 'Trie Index tool panel exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const el = await exists(page, '#tool-trie-index');
                 if (!el) throw new Error('#tool-trie-index not found');
             }
@@ -27,6 +29,9 @@ module.exports = {
         {
             name: 'Search term input exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                await page.click('[data-tool="trie-index"]');
                 const el = await exists(page, '#trie-search-term');
                 if (!el) throw new Error('#trie-search-term not found');
             }
@@ -34,6 +39,9 @@ module.exports = {
         {
             name: 'Live indicator is hidden initially',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                await page.click('[data-tool="trie-index"]');
                 const isHidden = await page.$eval('#trie-live-indicator', el => el.classList.contains('hidden'));
                 if (!isHidden) throw new Error('Live indicator should be hidden before first index');
             }
@@ -43,7 +51,8 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="trie-index"]');
                 await sleep(200);
                 await page.click('button[onclick="runTrieIndex()"]');
@@ -110,7 +119,6 @@ module.exports = {
                 await page.$eval('#trie-search-term', el => { el.value = 'wire'; });
                 await page.click('button[onclick="runTrieIndex()"]');
                 const html = await waitForResults(page, 'trie-index-results');
-                // Match tags should have onclick handlers
                 assertContains(html, 'runTrieIndex()');
             }
         },
@@ -119,11 +127,12 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
+                await waitForAppReady(page);
                 await page.select('#gen-type', 'blog');
                 await page.select('#gen-count', '50');
                 await page.click('button[onclick="generateDataset()"]');
                 await waitForText(page, '#gen-status', 'Generated', 8000);
-                await page.click('[data-tab="tools"]');
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="trie-index"]');
                 await sleep(200);
                 await page.$eval('#trie-search-term', el => { el.value = 'cloud'; });

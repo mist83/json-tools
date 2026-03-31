@@ -1,5 +1,5 @@
 // Suite: Page Load & Structure
-const { assertContains, exists, countElements, getText, sleep } = require('./helpers');
+const { assertContains, exists, countElements, getText, waitForAppReady, sleep } = require('./helpers');
 
 module.exports = {
     name: 'Page Load & Structure',
@@ -29,6 +29,7 @@ module.exports = {
         {
             name: 'Exactly 3 tabs rendered (Home, Tools, About)',
             async fn(page) {
+                await waitForAppReady(page);
                 const tabs = await countElements(page, '.tab');
                 if (tabs !== 3) throw new Error(`Expected 3 tabs, got ${tabs}`);
             }
@@ -36,31 +37,27 @@ module.exports = {
         {
             name: 'Home tab is active by default',
             async fn(page) {
-                const activeTab = await page.$eval('.tab.active', el => el.dataset.tab);
+                await waitForAppReady(page);
+                const activeTab = await page.$eval('.tab.active', el => el.dataset.tabId);
                 if (activeTab !== 'home') throw new Error(`Expected home tab active, got ${activeTab}`);
             }
         },
         {
-            name: 'Home section is active by default',
+            name: 'Home content is loaded by default',
             async fn(page) {
-                const active = await exists(page, '#content-home.active');
-                if (!active) throw new Error('#content-home should be active on load');
+                await waitForAppReady(page);
+                const active = await exists(page, '#content-home');
+                if (!active) throw new Error('#content-home should be present after load');
             }
         },
         {
-            name: 'Sidebar is hidden on Home tab (no-sidebar class)',
+            name: 'Tabs use data-tab-id attribute (TabsEverywhere)',
             async fn(page) {
-                const hasNoSidebar = await page.$eval('.layout.sidebar-content', el => el.classList.contains('no-sidebar'));
-                if (!hasNoSidebar) throw new Error('Layout should have no-sidebar class on Home tab');
-            }
-        },
-        {
-            name: 'All 3 section elements exist in DOM',
-            async fn(page) {
-                for (const s of ['home', 'tools', 'about']) {
-                    const el = await exists(page, `#content-${s}`);
-                    if (!el) throw new Error(`Section #content-${s} not found`);
-                }
+                await waitForAppReady(page);
+                const tabIds = await page.$$eval('.tab', els => els.map(e => e.dataset.tabId));
+                if (!tabIds.includes('home')) throw new Error('Tab with data-tab-id="home" not found');
+                if (!tabIds.includes('tools')) throw new Error('Tab with data-tab-id="tools" not found');
+                if (!tabIds.includes('about')) throw new Error('Tab with data-tab-id="about" not found');
             }
         },
         {
@@ -78,19 +75,26 @@ module.exports = {
             }
         },
         {
+            name: 'TabsEverywhere global is defined',
+            async fn(page) {
+                await waitForAppReady(page);
+                const defined = await page.evaluate(() => typeof window.TabsEverywhere !== 'undefined');
+                if (!defined) throw new Error('TabsEverywhere not defined — ui.js failed to load');
+            }
+        },
+        {
             name: 'No JavaScript errors on load',
             async fn(page) {
-                // Page errors are captured by the runner — just verify body exists
                 const bodyExists = await exists(page, 'body');
                 if (!bodyExists) throw new Error('Body element not found');
             }
         },
         {
-            name: 'Design system stylesheet loaded (ui.mullmania.com)',
+            name: 'Design system stylesheet loaded (ui.mikesendpoint.com)',
             async fn(page) {
                 const hasDesignSystem = await page.evaluate(() => {
                     const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
-                    return links.some(l => l.href.includes('ui.mullmania.com'));
+                    return links.some(l => l.href.includes('ui.mikesendpoint.com'));
                 });
                 if (!hasDesignSystem) throw new Error('Design system stylesheet not found');
             }

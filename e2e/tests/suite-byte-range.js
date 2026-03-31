@@ -1,20 +1,16 @@
 // Suite: Byte-Range Scanning Tool
-// NOTE: This suite generates data ONCE at the start and reuses it across tests.
-// Each test navigates to the tool but does NOT reload the page.
-const { assertContains, assertNotContains, exists, sleep, waitForText, waitForResults } = require('./helpers');
+const { assertContains, assertNotContains, exists, sleep, waitForText, waitForResults, switchTab, waitForAppReady } = require('./helpers');
 
-// Navigate to byte-range tool with data already loaded (no page reload)
 async function goToByteRange(page) {
-    await page.click('[data-tab="tools"]');
-    await sleep(100);
+    await switchTab(page, 'tools');
     await page.click('[data-tool="byte-range"]');
     await sleep(100);
 }
 
-// Generate data and navigate to byte-range tool (used for first test in suite)
 async function setupWithData(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
@@ -28,6 +24,8 @@ module.exports = {
         {
             name: 'Byte-Range tool panel exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const el = await exists(page, '#tool-byte-range');
                 if (!el) throw new Error('#tool-byte-range not found');
             }
@@ -35,6 +33,8 @@ module.exports = {
         {
             name: 'Scan button exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const btn = await exists(page, 'button[onclick="runByteRange()"]');
                 if (!btn) throw new Error('runByteRange button not found');
             }
@@ -42,6 +42,8 @@ module.exports = {
         {
             name: 'MD5 hashes checkbox exists and is checked by default',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const checked = await page.$eval('#byte-range-hashes', el => el.checked);
                 if (!checked) throw new Error('#byte-range-hashes should be checked by default');
             }
@@ -49,6 +51,8 @@ module.exports = {
         {
             name: 'Parallel checkbox exists and is unchecked by default',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const checked = await page.$eval('#byte-range-parallel', el => el.checked);
                 if (checked) throw new Error('#byte-range-parallel should be unchecked by default');
             }
@@ -58,8 +62,8 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                await page.click('[data-tab="tools"]');
-                await sleep(200);
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('button[onclick="runByteRange()"]');
                 await sleep(500);
                 const html = await page.$eval('#byte-range-results', el => el.innerHTML);
@@ -139,8 +143,7 @@ module.exports = {
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
                 assertNotContains(html, 'MD5:');
-                // Restore checkbox
-                await page.click('#byte-range-hashes');
+                await page.click('#byte-range-hashes'); // restore
             }
         },
         {
@@ -171,7 +174,6 @@ module.exports = {
                 const html = await waitForResults(page, 'byte-range-results');
                 assertContains(html, 'products');
                 assertContains(html, '1 collection');
-                // Clear filter
                 await page.$eval('#byte-range-collections', el => { el.value = ''; });
             }
         },

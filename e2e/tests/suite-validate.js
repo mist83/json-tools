@@ -1,15 +1,15 @@
 // Suite: JSON Validation Tool
-const { assertContains, exists, sleep, waitForResults, waitForText } = require('./helpers');
+const { assertContains, exists, sleep, waitForResults, waitForText, switchTab, waitForAppReady } = require('./helpers');
 
 async function setupWithData(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#gen-type', 'ecommerce');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
     await waitForText(page, '#gen-status', 'Generated', 8000);
-    await page.click('[data-tab="tools"]');
-    await sleep(200);
+    await switchTab(page, 'tools');
     await page.click('[data-tool="validate"]');
     await sleep(200);
 }
@@ -20,6 +20,8 @@ module.exports = {
         {
             name: 'Validate tool panel exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const el = await exists(page, '#tool-validate');
                 if (!el) throw new Error('#tool-validate not found');
             }
@@ -27,6 +29,9 @@ module.exports = {
         {
             name: 'Validate button exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                await page.click('[data-tool="validate"]');
                 const btn = await exists(page, 'button[onclick="runValidate()"]');
                 if (!btn) throw new Error('runValidate button not found');
             }
@@ -36,7 +41,8 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="validate"]');
                 await sleep(200);
                 await page.click('button[onclick="runValidate()"]');
@@ -94,29 +100,17 @@ module.exports = {
             }
         },
         {
-            name: 'Validate pasted invalid JSON → failure shown',
+            name: 'Validate pasted invalid JSON → error shown at paste time',
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                // Paste invalid JSON
+                await waitForAppReady(page);
                 await page.$eval('#home-paste-json', el => { el.value = '{"broken": [1, 2,}'; });
                 await page.click('button[onclick="loadFromPaste()"]');
                 await sleep(300);
-                // If paste succeeded (it shouldn't for invalid JSON), go to validate
-                // If it failed, the error is shown on home — that's fine, test the error path
                 const homeStatus = await page.$eval('#home-active-status', el => el.innerHTML);
-                if (homeStatus.includes('alert-error')) {
-                    // Expected — invalid JSON rejected at paste time
-                    assertContains(homeStatus, 'alert-error');
-                } else {
-                    // If somehow loaded, validate should fail
-                    await page.click('[data-tab="tools"]');
-                    await page.click('[data-tool="validate"]');
-                    await sleep(200);
-                    await page.click('button[onclick="runValidate()"]');
-                    const html = await waitForResults(page, 'validate-results');
-                    assertContains(html, 'alert-error');
-                }
+                // Invalid JSON should be rejected at paste time with an error
+                assertContains(homeStatus, 'alert-error');
             }
         },
         {
@@ -124,11 +118,12 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
+                await waitForAppReady(page);
                 await page.select('#gen-type', 'movies');
                 await page.select('#gen-count', '50');
                 await page.click('button[onclick="generateDataset()"]');
                 await waitForText(page, '#gen-status', 'Generated', 8000);
-                await page.click('[data-tab="tools"]');
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="validate"]');
                 await sleep(200);
                 await page.click('button[onclick="runValidate()"]');

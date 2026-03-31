@@ -1,17 +1,17 @@
 // Suite: Semantic Search Tool
-const { assertContains, exists, countElements, sleep, waitForResults, waitForText } = require('./helpers');
+const { assertContains, exists, countElements, sleep, waitForResults, waitForText, switchTab, waitForAppReady } = require('./helpers');
 
 async function setupWithMovies(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#gen-type', 'movies');
     await page.select('#gen-count', '50');
     await page.click('button[onclick="generateDataset()"]');
     await waitForText(page, '#gen-status', 'Generated', 8000);
-    await page.click('[data-tab="tools"]');
-    await sleep(200);
+    await switchTab(page, 'tools');
     await page.click('[data-tool="semantic"]');
-    await sleep(400); // wait for field chips to render
+    await sleep(400);
 }
 
 module.exports = {
@@ -20,6 +20,8 @@ module.exports = {
         {
             name: 'Semantic Search tool panel exists',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 const el = await exists(page, '#tool-semantic');
                 if (!el) throw new Error('#tool-semantic not found');
             }
@@ -27,6 +29,9 @@ module.exports = {
         {
             name: 'Match Engine selector exists with correct options',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                await page.click('[data-tool="semantic"]');
                 const el = await exists(page, '#semantic-match-engine');
                 if (!el) throw new Error('#semantic-match-engine not found');
                 const options = await page.$$eval('#semantic-match-engine option', opts => opts.map(o => o.value));
@@ -39,6 +44,9 @@ module.exports = {
         {
             name: 'Tokenizer selector exists with correct options',
             async fn(page) {
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
+                await page.click('[data-tool="semantic"]');
                 const el = await exists(page, '#semantic-tokenizer');
                 if (!el) throw new Error('#semantic-tokenizer not found');
                 const options = await page.$$eval('#semantic-tokenizer option', opts => opts.map(o => o.value));
@@ -51,7 +59,8 @@ module.exports = {
             async fn(page) {
                 await page.evaluate(() => localStorage.clear());
                 await page.reload({ waitUntil: 'networkidle2' });
-                await page.click('[data-tab="tools"]');
+                await waitForAppReady(page);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="semantic"]');
                 await sleep(200);
                 await page.$eval('#semantic-search-term', el => { el.value = 'test'; });
@@ -121,30 +130,19 @@ module.exports = {
                 await page.$eval('#semantic-search-term', el => { el.value = 'the'; });
                 await page.click('button[onclick="runSemanticSearch()"]');
                 const html = await waitForResults(page, 'semantic-results');
-                if (html.includes('Matches Found')) {
-                    // If matches found, verify structure
-                    const hasMatches = html.includes('Match #1') || html.includes('alert-warning');
-                    if (!hasMatches) throw new Error('Should show match cards or warning');
-                }
+                const hasMatches = html.includes('Match #1') || html.includes('alert-warning');
+                if (!hasMatches) throw new Error('Should show match cards or warning');
             }
         },
         {
             name: 'Contains engine finds broader matches than prefix',
             async fn(page) {
                 await setupWithMovies(page);
-                // First search with prefix
-                await page.select('#semantic-match-engine', 'prefix');
-                await page.$eval('#semantic-search-term', el => { el.value = 'ight'; }); // won't match prefix
-                await page.click('button[onclick="runSemanticSearch()"]');
-                const prefixHtml = await waitForResults(page, 'semantic-results');
-
-                // Then search with contains
                 await page.select('#semantic-match-engine', 'contains');
+                await page.$eval('#semantic-search-term', el => { el.value = 'ight'; });
                 await page.click('button[onclick="runSemanticSearch()"]');
-                const containsHtml = await waitForResults(page, 'semantic-results');
-
-                // Contains should find "light", "night", etc. — verify it ran successfully
-                assertContains(containsHtml, 'alert-success');
+                const html = await waitForResults(page, 'semantic-results');
+                assertContains(html, 'alert-success');
             }
         },
         {

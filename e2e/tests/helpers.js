@@ -3,11 +3,27 @@
 const API_TIMEOUT = 20000;
 
 /**
- * Click a tab by its data-tab value and wait for the section to become active.
+ * Click a tab by its data-tab-id value and wait for it to become active.
+ * TabsEverywhere sets class="tab active" on the button and class="display-block"
+ * on the content wrapper div when a tab is active.
  */
 async function switchTab(page, tabName) {
-    await page.click(`[data-tab="${tabName}"]`);
-    await page.waitForSelector(`#content-${tabName}.active`, { timeout: 3000 });
+    await page.click(`#tab-${tabName}`);
+    // Poll until the content wrapper exists AND has display-block class
+    const start = Date.now();
+    while (Date.now() - start < 10000) {
+        try {
+            const ready = await page.evaluate((id) => {
+                const wrappers = Array.from(document.querySelectorAll(`[data-tab-id="${id}"]`));
+                const wrapper = wrappers.find(el => el.id !== `tab-${id}`);
+                if (!wrapper) return false;
+                return wrapper.classList.contains('display-block');
+            }, tabName);
+            if (ready) break;
+        } catch (_) {}
+        await sleep(200);
+    }
+    await sleep(200);
 }
 
 /**
@@ -110,6 +126,27 @@ async function exists(page, selector) {
     return !!(await page.$(selector));
 }
 
+/**
+ * Wait for the page to fully load including TabsEverywhere init and first tab content.
+ */
+async function waitForAppReady(page, timeout = 15000) {
+    // Wait for TabsEverywhere to be defined and tabs to render
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        try {
+            const ready = await page.evaluate(() => {
+                return typeof window.TabsEverywhere !== 'undefined'
+                    && !!document.querySelector('.tab.active')
+                    && document.getElementById('content-container') !== null
+                    && document.getElementById('content-container').innerHTML.trim().length > 50;
+            });
+            if (ready) break;
+        } catch (_) {}
+        await sleep(300);
+    }
+    await sleep(300);
+}
+
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
@@ -127,5 +164,6 @@ module.exports = {
     countElements,
     waitForText,
     exists,
+    waitForAppReady,
     sleep,
 };

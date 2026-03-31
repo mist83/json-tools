@@ -1,9 +1,10 @@
 // Suite: Execution Mode / Privacy Preview
-const { assertContains, exists, sleep, waitForResults, waitForText } = require('./helpers');
+const { assertContains, exists, sleep, waitForResults, waitForText, switchTab, waitForAppReady } = require('./helpers');
 
 async function generateData(page, type = 'movies', count = '50') {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle2' });
+    await waitForAppReady(page);
     await page.select('#execution-mode', 'browser');
     await page.select('#gen-type', type);
     await page.select('#gen-count', count);
@@ -17,6 +18,7 @@ module.exports = {
         {
             name: 'Execution mode selector exists on Home tab',
             async fn(page) {
+                await waitForAppReady(page);
                 const el = await exists(page, '#execution-mode');
                 if (!el) throw new Error('#execution-mode not found');
             }
@@ -24,6 +26,7 @@ module.exports = {
         {
             name: 'Browser Preview mode updates the header badge',
             async fn(page) {
+                await waitForAppReady(page);
                 await page.select('#execution-mode', 'browser');
                 await sleep(200);
                 const badge = await page.$eval('#execution-mode-badge', el => el.textContent);
@@ -34,8 +37,7 @@ module.exports = {
             name: 'Browser Preview byte-range scan works without API mode',
             async fn(page) {
                 await generateData(page, 'ecommerce', '50');
-                await page.click('[data-tab="tools"]');
-                await sleep(200);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="byte-range"]');
                 await page.click('button[onclick="runByteRange()"]');
                 const html = await waitForResults(page, 'byte-range-results');
@@ -47,8 +49,7 @@ module.exports = {
             name: 'Browser Preview semantic search returns results',
             async fn(page) {
                 await generateData(page, 'movies', '50');
-                await page.click('[data-tab="tools"]');
-                await sleep(200);
+                await switchTab(page, 'tools');
                 await page.click('[data-tool="semantic"]');
                 await sleep(200);
                 await page.$eval('#semantic-search-term', el => { el.value = 'hanks'; });
