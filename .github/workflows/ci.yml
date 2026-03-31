@@ -49,3 +49,72 @@ jobs:
           path: coverage/**/*.trx
           reporter: dotnet-trx
           fail-on-error: true
+
+  browser-smoke:
+    name: Browser Smoke (Puppeteer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build demo host
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Start local demo host
+        run: |
+          dotnet run --no-build --configuration Release \
+            --project src/JsonUtilitiesDemo/JsonUtilitiesDemo.csproj \
+            --urls http://127.0.0.1:5968 > /tmp/json-tools-demo.log 2>&1 &
+          echo $! > /tmp/json-tools-demo.pid
+
+      - name: Wait for local demo host
+        run: |
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:5968 > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/json-tools-demo.log
+          exit 1
+
+      - name: Run Puppeteer smoke suite
+        working-directory: e2e
+        env:
+          BASE_URL: http://127.0.0.1:5968
+        run: node tests/run.js
+
+      - name: Upload demo host log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-demo-log
+          path: /tmp/json-tools-demo.log
+
+      - name: Stop local demo host
+        if: always()
+        run: |
+          if [ -f /tmp/json-tools-demo.pid ]; then
+            kill "$(cat /tmp/json-tools-demo.pid)" || true
+          fi

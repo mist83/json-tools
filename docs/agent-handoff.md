@@ -1,7 +1,7 @@
 # Agent Handoff — JsonUtilities Demo UI
 
 **Last updated:** 2026-03-31  
-**Status:** UI is migrated to `ui.mikesendpoint.com`, local `.NET` tests and local Puppeteer E2E are green, and the latest follow-up fixed cached-tab hash/event sync plus the mobile header badge overflow.
+**Status:** UI is migrated to `ui.mikesendpoint.com`, local `.NET` tests and local Puppeteer E2E are green, and the latest follow-up fixed cached-tab hash/event sync plus the mobile header/tabs layout regressions.
 
 ---
 
@@ -53,6 +53,7 @@ Follow-up fixes in the current pass:
 
 - Cached `htmlSource` tabs now dispatch `tabs-everywhere:tab-changed` and update the URL hash even when the DOM is reused from cache.
 - The header badge row now reflows cleanly on narrower viewports instead of clipping off-screen.
+- The tabs rail now keeps its own height on mobile, so content no longer overlaps the tab hit targets.
 
 ### How TabsEverywhere Works (Critical for E2E)
 
