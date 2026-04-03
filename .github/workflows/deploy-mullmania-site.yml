@@ -1,0 +1,70 @@
+name: Deploy Mullmania Site
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  MULLMANIA_AWS_ROLE_ARN: arn:aws:iam::166404899495:role/github-actions-role
+  MULLMANIA_SITE_CONFIG: mullmania.site.json
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Load site config
+        id: config
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync(process.env.MULLMANIA_SITE_CONFIG, 'utf8'));
+          const output = process.env.GITHUB_OUTPUT;
+
+          function setOutput(name, value) {
+            fs.appendFileSync(output, name + '<<__EOF__\n' + String(value ?? '') + '\n__EOF__\n');
+          }
+
+          setOutput('node_version', config.nodeVersion || '');
+          setOutput('dotnet_version', config.dotnetVersion || '');
+          setOutput('install_command', config.installCommand || '');
+          setOutput('build_command', config.buildCommand || '');
+          NODE
+
+      - name: Setup Node
+        if: steps.config.outputs.node_version != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ steps.config.outputs.node_version }}
+
+      - name: Setup .NET
+        if: steps.config.outputs.dotnet_version != ''
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ steps.config.outputs.dotnet_version }}
+
+      - name: Install dependencies
+        if: steps.config.outputs.install_command != ''
+        run: ${{ steps.config.outputs.install_command }}
+
+      - name: Build
+        if: steps.config.outputs.build_command != ''
+        run: ${{ steps.config.outputs.build_command }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.MULLMANIA_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy site
+        run: node scripts/deploy-mullmania-site.mjs apply --config ${{ env.MULLMANIA_SITE_CONFIG }}

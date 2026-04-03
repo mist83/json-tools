@@ -1,9 +1,14 @@
 {
   "repo": "mist83/json-tools",
   "name": "json-tools",
-  "posterUrl": "https://mist83.github.io/_demo/json-tools/poster.svg",
+  "posterUrl": "https://mist83.github.io/_demo/json-tools/poster.png",
+  "posterPath": "./demo/poster.png",
   "videoUrl": "",
+  "videoPath": "",
   "manifestUrl": "https://mist83.github.io/_demo/json-tools/manifest.json",
+  "manifestPath": "./demo/manifest.json",
   "artifactBaseUrl": "https://mist83.github.io/_demo/json-tools/",
-  "hasVideo": false
+  "hasVideo": false,
+  "posterKind": "showcase-reel",
+  "posterNote": "Real screenshot pulled from the Showcase reel wall."
 }

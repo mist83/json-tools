@@ -3,135 +3,246 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>json-tools</title>
+    <title>JSON Tools</title>
     <meta name="description" content="High-performance JSON scanning and indexing library">
-    <style>
-      :root {
-        color-scheme: light;
-        --bg: #f6f3ec;
-        --panel: rgba(255, 255, 255, 0.82);
-        --text: #17130f;
-        --muted: #5a5148;
-        --line: rgba(23, 19, 15, 0.12);
-        --accent: #1d63ff;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        font-family: Georgia, "Times New Roman", serif;
-        background:
-          radial-gradient(circle at top left, rgba(29, 99, 255, 0.12), transparent 32rem),
-          linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
-        color: var(--text);
-      }
-      main {
-        width: min(48rem, calc(100vw - 2rem));
-        margin: 0 auto;
-        padding: 4rem 0 5rem;
-      }
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 1.25rem;
-        padding: 1.5rem;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 1.5rem 4rem rgba(23, 19, 15, 0.08);
-      }
-      .eyebrow {
-        margin: 0 0 0.75rem;
-        font-size: 0.8rem;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(2.2rem, 8vw, 4.4rem);
-        line-height: 0.95;
-      }
-      p {
-        color: var(--muted);
-        line-height: 1.55;
-      }
-      .links {
-        display: grid;
-        gap: 0.75rem;
-        margin-top: 1.5rem;
-      }
-      .hero {
-        display: block;
-        width: 100%;
-        border: 1px solid var(--line);
-        border-radius: 1rem;
-        margin-top: 1.5rem;
-        background: rgba(255, 255, 255, 0.72);
-      }
-      a {
-        color: var(--text);
-        text-decoration: none;
-      }
-      .link {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 0.9rem 1rem;
-        border: 1px solid var(--line);
-        border-radius: 0.9rem;
-        background: rgba(255, 255, 255, 0.72);
-      }
-      .label {
-        font-weight: 700;
-      }
-      .value {
-        color: var(--accent);
-        overflow-wrap: anywhere;
-        text-align: right;
-      }
-      .note {
-        margin-top: 1.25rem;
-        font-size: 0.95rem;
-      }
-    </style>
-  <link rel="icon" href="favicon.ico">
+    <script src="https://ui.mullmania.com/ui.js"></script>
   </head>
   <body>
-    <main>
-      <section class="panel">
-        <p class="eyebrow">Public Front Door</p>
-        <h1>json-tools</h1>
-        <p>High-performance JSON scanning and indexing library</p>
-        <img class="hero" src="https://mist83.github.io/_demo/json-tools/poster.svg" alt="json-tools poster">
-        <div class="links">
-          <a class="link" href="https://github.com/mist83/json-tools">
-            <span class="label">GitHub</span>
-            <span class="value">https://github.com/mist83/json-tools</span>
-          </a>
-          <a class="link" href="https://mist83.github.io/json-tools/">
-            <span class="label">Pages</span>
-            <span class="value">https://mist83.github.io/json-tools/</span>
-          </a>
-          <a class="link" href="https://json-tools.mullmania.com/">
-            <span class="label">Mullmania Mirror</span>
-            <span class="value">https://json-tools.mullmania.com/</span>
-          </a>
-          <a class="link" href="https://mist83.github.io/_demo/json-tools/">
-            <span class="label">Demo Artifact Base</span>
-            <span class="value">https://mist83.github.io/_demo/json-tools/</span>
-          </a>
-          <a class="link" href="https://mist83.github.io/_demo/json-tools/poster.svg">
-            <span class="label">Poster</span>
-            <span class="value">https://mist83.github.io/_demo/json-tools/poster.svg</span>
-          </a>
-          <a class="link" href="https://mist83.github.io/_demo/json-tools/manifest.json">
-            <span class="label">Manifest</span>
-            <span class="value">https://mist83.github.io/_demo/json-tools/manifest.json</span>
-          </a>
-        </div>
-        <p class="note">This page is intentionally terse. The repo stays private; the artifacts do not. Video is optional and only appears when a real capture exists.</p>
-      </section>
-    </main>
+    <div id="app"></div>
+    <script>
+      function currentVariant() {
+        return new URLSearchParams(window.location.search).get('variant') || 'focus';
+      }
+
+      function setVariant(nextVariant) {
+        const url = new URL(window.location.href);
+        if (nextVariant === 'focus') {
+          url.searchParams.delete('variant');
+        } else {
+          url.searchParams.set('variant', nextVariant);
+        }
+        window.location.assign(url.toString());
+      }
+
+      function linkButton(label, href, variant = 'secondary', icon = 'ti ti-arrow-up-right') {
+        if (!href) {
+          return null;
+        }
+
+        return UI.button({
+          label,
+          variant,
+          icon,
+          action: {
+            type: 'open',
+            href,
+          },
+        });
+      }
+
+      function proofImage(data) {
+        return {
+          tag: 'img',
+          attrs: {
+            src: data.posterPath,
+            alt: data.title + ' proof asset',
+            loading: 'eager',
+          },
+          style: {
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+            borderRadius: '16px',
+          },
+        };
+      }
+
+      function focusSections(data) {
+        const openButtons = [
+          linkButton(data.liveLabel || 'Open live surface', data.liveUrl, 'primary', 'ti ti-player-play'),
+          linkButton('Open Mullmania', data.mullmaniaUrl, data.liveUrl === data.mullmaniaUrl ? 'primary' : 'secondary', 'ti ti-world'),
+          linkButton('Open GitHub front door', data.pagesUrl, 'secondary', 'ti ti-browser'),
+          linkButton('View repo', data.githubUrl, 'secondary', 'ti ti-brand-github'),
+        ].filter(Boolean);
+
+        return [
+          UI.section({
+            eyebrow: 'Public Front Door',
+            title: data.title,
+            description: data.description,
+            children: [
+              UI.grid({
+                columns: 2,
+                children: [
+                  UI.card({
+                    title: 'Proof',
+                    subtitle: data.posterNote,
+                    body: proofImage(data),
+                  }),
+                  UI.card({
+                    title: 'Open the actual thing',
+                    subtitle: data.publishDir !== './docs'
+                      ? 'Mullmania is wired to publish the repo surface, not just this front door.'
+                      : 'This repo does not have a separate committed app surface yet, so the front door stays honest about that.',
+                    body: UI.stack({
+                      gap: 'sm',
+                      children: [
+                        UI.status({
+                          label: data.publishDir !== './docs' ? 'Actual app publish path' : 'Front-door-only publish path',
+                          tone: data.publishDir !== './docs' ? 'success' : 'warning',
+                        }),
+                        UI.text({
+                          role: 'body',
+                          text: 'Publish directory: ' + data.publishDir,
+                        }),
+                      ],
+                    }),
+                    actions: openButtons,
+                  }),
+                ],
+              }),
+            ],
+          }),
+          UI.section({
+            eyebrow: 'Delivery',
+            title: 'Shipping facts',
+            children: [
+              UI.grid({
+                columns: 4,
+                children: [
+                  UI.stat({
+                    label: 'Branch',
+                    value: data.defaultBranch || 'main',
+                    icon: 'ti ti-git-branch',
+                  }),
+                  UI.stat({
+                    label: 'Mirror path',
+                    value: data.publishDir,
+                    icon: 'ti ti-world-upload',
+                  }),
+                  UI.stat({
+                    label: 'Demo mode',
+                    value: data.demoMode || 'unknown',
+                    icon: 'ti ti-device-tv',
+                  }),
+                  UI.stat({
+                    label: 'Poster',
+                    value: data.posterKind === 'showcase-reel' ? 'real' : 'placeholder',
+                    icon: 'ti ti-photo',
+                    badge: {
+                      label: data.posterKind === 'showcase-reel' ? 'evidence' : 'fallback',
+                      tone: data.posterKind === 'showcase-reel' ? 'success' : 'warning',
+                    },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ];
+      }
+
+      function evidenceSections(data) {
+        return [
+          UI.section({
+            eyebrow: 'Evidence',
+            title: 'Links and proof',
+            children: [
+              UI.table({
+                columns: [
+                  { key: 'label', label: 'Item' },
+                  {
+                    key: 'value',
+                    label: 'Value',
+                    render: (row) => row.href
+                      ? {
+                          tag: 'a',
+                          attrs: {
+                            href: row.href,
+                            target: '_blank',
+                            rel: 'noreferrer',
+                          },
+                          text: row.value,
+                        }
+                      : row.value,
+                  },
+                ],
+                rows: [
+                  { label: 'Repo', value: data.repo },
+                  { label: 'GitHub', value: data.githubUrl, href: data.githubUrl },
+                  { label: 'GitHub front door', value: data.pagesUrl, href: data.pagesUrl },
+                  { label: 'Mullmania mirror', value: data.mullmaniaUrl, href: data.mullmaniaUrl },
+                  ...(data.liveUrl ? [{ label: data.liveLabel || 'Live surface', value: data.liveUrl, href: data.liveUrl }] : []),
+                  { label: 'Canonical artifacts', value: data.artifactBaseUrl, href: data.artifactBaseUrl },
+                  { label: 'Canonical poster', value: data.posterUrl, href: data.posterUrl },
+                  { label: 'Canonical manifest', value: data.manifestUrl, href: data.manifestUrl },
+                  { label: 'Local poster', value: data.posterPath, href: data.posterPath },
+                  { label: 'Local manifest', value: data.manifestPath, href: data.manifestPath },
+                  { label: 'Deploy mode', value: data.deployMode || 'unknown' },
+                  { label: 'Wave', value: data.wave || 'unclassified' },
+                  { label: 'Primary language', value: data.primaryLanguage || 'unknown' },
+                ],
+              }),
+            ],
+          }),
+          UI.section({
+            eyebrow: 'Poster',
+            title: data.posterKind === 'showcase-reel' ? 'Real proof asset' : 'Fallback poster',
+            description: data.posterNote,
+            children: [
+              proofImage(data),
+              data.hasVideo
+                ? UI.alert({
+                    tone: 'success',
+                    title: 'Video available',
+                    message: 'A real demo video exists for this repo.',
+                  })
+                : UI.alert({
+                    tone: 'info',
+                    title: 'Video optional',
+                    message: 'No demo video is published yet. The contract leaves the slot open without pretending otherwise.',
+                  }),
+            ],
+            actions: [
+              linkButton('Open poster', data.posterPath, 'secondary', 'ti ti-photo'),
+              linkButton('Open manifest', data.manifestPath, 'secondary', 'ti ti-file-description'),
+            ].filter(Boolean),
+          }),
+        ];
+      }
+
+      async function renderFrontDoor() {
+        const response = await fetch('./frontdoor.json', { cache: 'no-store' });
+        const data = await response.json();
+        const variant = currentVariant();
+
+        document.title = data.title + ' · mist83 front door';
+
+        UI.mount('#app', {
+          icon: 'ti ti-door-enter',
+          title: data.title,
+          subtitle: 'ui.mullmania.com dogfood front door. Switch views instead of inventing a second shell.',
+          actions: [
+            UI.button({
+              label: 'Focus',
+              variant: variant === 'focus' ? 'primary' : 'secondary',
+              onClick: () => setVariant('focus'),
+            }),
+            UI.button({
+              label: 'Evidence',
+              variant: variant === 'evidence' ? 'primary' : 'secondary',
+              onClick: () => setVariant('evidence'),
+            }),
+          ],
+          sections: variant === 'evidence' ? evidenceSections(data) : focusSections(data),
+        });
+      }
+
+      window.addEventListener('ui-ready', () => {
+        renderFrontDoor().catch((error) => {
+          console.error('[frontdoor] render failed', error);
+          document.body.textContent = error.message || String(error);
+        });
+      });
+    </script>
   </body>
 </html>
