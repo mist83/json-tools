@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 const { spawn, spawnSync } = require('node:child_process');
+const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const E2E_DIR = path.join(ROOT, 'e2e');
 const RUNNER = path.join(__dirname, 'run.js');
 const PROJECT = path.join('src', 'JsonUtilitiesDemo', 'JsonUtilitiesDemo.csproj');
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5968';
@@ -15,6 +17,7 @@ const SERVER_READY_POLL_MS = Number.parseInt(process.env.SERVER_READY_POLL_MS ||
 
 async function main() {
     await runCommand('dotnet', BUILD_ARGS, { cwd: ROOT });
+    await ensureE2eDependencies();
 
     const host = spawn('dotnet', HOST_ARGS, {
         cwd: ROOT,
@@ -31,6 +34,16 @@ async function main() {
     } finally {
         await stopProcess(host);
     }
+}
+
+async function ensureE2eDependencies() {
+    const puppeteerPath = path.join(E2E_DIR, 'node_modules', 'puppeteer', 'package.json');
+    if (fs.existsSync(puppeteerPath)) {
+        return;
+    }
+
+    console.log('e2e dependencies missing; running npm ci in e2e/');
+    await runCommand('npm', ['ci', '--include=dev'], { cwd: E2E_DIR });
 }
 
 function runCommand(command, args, options) {

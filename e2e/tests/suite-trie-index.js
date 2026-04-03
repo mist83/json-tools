@@ -113,13 +113,19 @@ module.exports = {
             }
         },
         {
-            name: 'Match tags are clickable (onclick sets search term)',
+            name: 'Match tags are clickable',
             async fn(page) {
                 await setupWithData(page);
                 await page.$eval('#trie-search-term', el => { el.value = 'wire'; });
                 await page.click('button[onclick="runTrieIndex()"]');
-                const html = await waitForResults(page, 'trie-index-results');
-                assertContains(html, 'runTrieIndex()');
+                await waitForResults(page, 'trie-index-results');
+                const tag = await page.$('.trie-matches .status-badge.status-info');
+                if (!tag) {
+                    throw new Error('Clickable trie match tag not found');
+                }
+                const onclick = await page.evaluate((el) => el.getAttribute('onclick') || '', tag);
+                assertContains(onclick, 'trie-search-term');
+                assertContains(onclick, 'runTrieIndex');
             }
         },
         {
