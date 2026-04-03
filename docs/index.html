@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>json-tools</title>
+    <meta name="description" content="High-performance JSON scanning and indexing library">
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f3ec;
+        --panel: rgba(255, 255, 255, 0.82);
+        --text: #17130f;
+        --muted: #5a5148;
+        --line: rgba(23, 19, 15, 0.12);
+        --accent: #1d63ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        background:
+          radial-gradient(circle at top left, rgba(29, 99, 255, 0.12), transparent 32rem),
+          linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+      main {
+        width: min(48rem, calc(100vw - 2rem));
+        margin: 0 auto;
+        padding: 4rem 0 5rem;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 1.25rem;
+        padding: 1.5rem;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1.5rem 4rem rgba(23, 19, 15, 0.08);
+      }
+      .eyebrow {
+        margin: 0 0 0.75rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 8vw, 4.4rem);
+        line-height: 0.95;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.55;
+      }
+      .links {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+      .hero {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        margin-top: 1.5rem;
+        background: rgba(255, 255, 255, 0.72);
+      }
+      a {
+        color: var(--text);
+        text-decoration: none;
+      }
+      .link {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        background: rgba(255, 255, 255, 0.72);
+      }
+      .label {
+        font-weight: 700;
+      }
+      .value {
+        color: var(--accent);
+        overflow-wrap: anywhere;
+        text-align: right;
+      }
+      .note {
+        margin-top: 1.25rem;
+        font-size: 0.95rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <p class="eyebrow">Public Front Door</p>
+        <h1>json-tools</h1>
+        <p>High-performance JSON scanning and indexing library</p>
+        <img class="hero" src="https://mist83.github.io/_demo/json-tools/poster.svg" alt="json-tools poster">
+        <div class="links">
+          <a class="link" href="https://github.com/mist83/json-tools">
+            <span class="label">GitHub</span>
+            <span class="value">https://github.com/mist83/json-tools</span>
+          </a>
+          <a class="link" href="https://mist83.github.io/json-tools/">
+            <span class="label">Pages</span>
+            <span class="value">https://mist83.github.io/json-tools/</span>
+          </a>
+          <a class="link" href="https://json-tools.mullmania.com/">
+            <span class="label">Mullmania Mirror</span>
+            <span class="value">https://json-tools.mullmania.com/</span>
+          </a>
+          <a class="link" href="https://mist83.github.io/_demo/json-tools/">
+            <span class="label">Demo Artifact Base</span>
+            <span class="value">https://mist83.github.io/_demo/json-tools/</span>
+          </a>
+          <a class="link" href="https://mist83.github.io/_demo/json-tools/poster.svg">
+            <span class="label">Poster</span>
+            <span class="value">https://mist83.github.io/_demo/json-tools/poster.svg</span>
+          </a>
+          <a class="link" href="https://mist83.github.io/_demo/json-tools/manifest.json">
+            <span class="label">Manifest</span>
+            <span class="value">https://mist83.github.io/_demo/json-tools/manifest.json</span>
+          </a>
+        </div>
+        <p class="note">This page is intentionally terse. The repo stays private; the artifacts do not. Video is optional and only appears when a real capture exists.</p>
+      </section>
+    </main>
+  </body>
+</html>

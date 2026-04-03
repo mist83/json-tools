@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">json-tools</title>
+  <desc id="desc">High-performance JSON scanning and indexing library</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbfaf7" />
+      <stop offset="100%" stop-color="#efe7d9" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.1" r="0.8">
+      <stop offset="0%" stop-color="#2d6bff" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#2d6bff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)" />
+  <rect width="1600" height="900" fill="url(#glow)" />
+  <rect x="72" y="72" width="1456" height="756" rx="36" fill="rgba(255,255,255,0.82)" stroke="rgba(23,19,15,0.12)" />
+  <text x="130" y="170" fill="#675d53" font-size="28" font-family="Georgia, 'Times New Roman', serif" letter-spacing="6">PUBLIC FRONT DOOR</text>
+  <text x="130" y="310" fill="#17130f" font-size="112" font-family="Georgia, 'Times New Roman', serif">json-tools</text>
+  <text x="130" y="380" fill="#5a5148" font-size="38" font-family="Georgia, 'Times New Roman', serif">High-performance JSON scanning and indexing library</text>
+  <text x="130" y="560" fill="#17130f" font-size="34" font-family="Georgia, 'Times New Roman', serif">Repo</text>
+  <text x="420" y="560" fill="#1d63ff" font-size="30" font-family="Georgia, 'Times New Roman', serif">mist83/json-tools</text>
+  <text x="130" y="640" fill="#17130f" font-size="34" font-family="Georgia, 'Times New Roman', serif">Public route</text>
+  <text x="420" y="640" fill="#1d63ff" font-size="30" font-family="Georgia, 'Times New Roman', serif">https://mist83.github.io/json-tools/</text>
+  <text x="130" y="760" fill="#5a5148" font-size="28" font-family="Georgia, 'Times New Roman', serif">Private source repo. Public artifact surface.</text>
+</svg>

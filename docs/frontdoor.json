@@ -1,0 +1,12 @@
+{
+  "repo": "mist83/json-tools",
+  "name": "json-tools",
+  "description": "High-performance JSON scanning and indexing library",
+  "githubUrl": "https://github.com/mist83/json-tools",
+  "pagesUrl": "https://mist83.github.io/json-tools/",
+  "mullmaniaUrl": "https://json-tools.mullmania.com/",
+  "artifactBaseUrl": "https://mist83.github.io/_demo/json-tools/",
+  "posterUrl": "https://mist83.github.io/_demo/json-tools/poster.svg",
+  "videoUrl": "",
+  "manifestUrl": "https://mist83.github.io/_demo/json-tools/manifest.json"
+}
