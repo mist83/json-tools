@@ -32,6 +32,15 @@ High-performance C# library for scanning large JSON files with byte-position tra
 - **Local API** — `dotnet run` serves the UI and API together on localhost
 - **Browser Preview** — keeps JSON in the browser tab for privacy-sensitive experimentation
 
+### Static Deploy
+
+The GitHub Pages and Mullmania deploy paths publish the root frontend only. The generated workflow stages `index.html`, `app.js`, `data-generator.js`, `plugin-registry.js`, `sample-data.js`, `js/`, `tabs/`, and the explainer page under `docs/`, while excluding the .NET solution, tests, and other backend compute.
+
+Required secrets and permissions:
+
+- Mullmania: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+- GitHub Pages: `contents: read`, `pages: write`, `id-token: write`
+
 ## 📦 Quick Start
 
 ```bash

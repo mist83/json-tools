@@ -1,0 +1,49 @@
+{
+  "siteId": "json-tools",
+  "publishDir": ".",
+  "dataDir": null,
+  "dataPrefix": "data",
+  "delete": true,
+  "dataDelete": false,
+  "nodeVersion": "",
+  "dotnetVersion": "",
+  "installCommand": "",
+  "buildCommand": "",
+  "exclude": [
+    ".git/*",
+    ".github/*",
+    "node_modules/*",
+    "bin/*",
+    "obj/*",
+    "src/*",
+    "tests/*",
+    "e2e/*",
+    "benchmarks/*",
+    "*.sln",
+    "*.csproj",
+    "*.cs",
+    "*.fs",
+    "*.vb",
+    "*.props",
+    "*.targets",
+    ".clinerules",
+    ".gitignore",
+    "README.md",
+    "LICENSE",
+    "implementation_plan.md",
+    "mullmania.site.json",
+    "scripts/deploy-mullmania-site.mjs"
+  ],
+  "tags": [
+    "frontend",
+    "static-site",
+    "github-pages",
+    "mullmania"
+  ],
+  "notes": "Static JsonUtilities frontend. GitHub Pages should ship the root UI only; Mullmania deploy excludes backend compute and repo scaffolding.",
+  "cacheControl": {
+    "*.html": "no-cache",
+    "*.js": "no-cache",
+    "*.json": "no-cache"
+  }
+}
