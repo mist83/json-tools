@@ -29,9 +29,11 @@ dotnet test  # Passed! 117/117
 
 **Run E2E tests:**
 ```bash
-cd e2e && npm install
+cd e2e && npm ci
 BASE_URL=http://localhost:5968 node tests/run.js
 ```
+
+`npm run smoke:local` bootstraps `e2e/` dependencies automatically when `node_modules` is missing, so the fresh-clone smoke path does not require a manual install step.
 
 ---
 

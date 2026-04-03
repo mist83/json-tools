@@ -244,6 +244,8 @@ cd e2e
 npm run smoke:local
 ```
 
+`smoke:local` bootstraps `e2e/` dependencies with `npm ci` if `node_modules` is missing, then runs the local server + Puppeteer check.
+
 ```bash
 # With coverage
 dotnet test --collect:"XPlat Code Coverage"
