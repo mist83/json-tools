@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const RUNNER = path.join(__dirname, 'run.js');
 const PROJECT = path.join('src', 'JsonUtilitiesDemo', 'JsonUtilitiesDemo.csproj');
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5968';
+const HEALTH_URL = new URL('/api/health', BASE_URL).toString();
 const HOST_ARGS = ['run', '--no-build', '--project', PROJECT, '--urls', BASE_URL];
 const BUILD_ARGS = ['build', PROJECT, '-v', 'minimal'];
 const SERVER_READY_TIMEOUT_MS = Number.parseInt(process.env.SERVER_READY_TIMEOUT_MS || '120000', 10);
@@ -23,7 +24,7 @@ async function main() {
     });
 
     try {
-        await waitForServer(BASE_URL, SERVER_READY_TIMEOUT_MS, SERVER_READY_POLL_MS);
+        await waitForServer(HEALTH_URL, SERVER_READY_TIMEOUT_MS, SERVER_READY_POLL_MS, host);
         await runCommand(process.execPath, [RUNNER], {
             cwd: ROOT,
             env: { ...process.env, BASE_URL }
@@ -53,10 +54,15 @@ function runCommand(command, args, options) {
     });
 }
 
-function waitForServer(url, timeoutMs, pollMs) {
+function waitForServer(url, timeoutMs, pollMs, child) {
     const deadline = Date.now() + timeoutMs;
     return new Promise((resolve, reject) => {
         const poll = () => {
+            if (child && (child.exitCode !== null || child.signalCode !== null)) {
+                reject(new Error(`Local demo host exited before ${url} became ready`));
+                return;
+            }
+
             requestOk(url)
                 .then((ok) => {
                     if (ok) {
