@@ -237,6 +237,13 @@ dotnet test
 # Passed! - Failed: 0, Passed: 117, Skipped: 0
 ```
 
+For the full local browser smoke path:
+
+```bash
+cd e2e
+npm run smoke:local
+```
+
 ```bash
 # With coverage
 dotnet test --collect:"XPlat Code Coverage"

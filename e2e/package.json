@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node tests/run.js",
+    "smoke:local": "node tests/run-local.js",
     "test:headed": "HEADLESS=false node tests/run.js",
     "test:local": "BASE_URL=http://localhost:5968 node tests/run.js"
   },
