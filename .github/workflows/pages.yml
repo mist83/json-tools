@@ -1,4 +1,4 @@
-name: Deploy Mullmania Site
+name: Deploy GitHub Pages
 
 on:
   push:
@@ -6,17 +6,21 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
 env:
-  AWS_REGION: us-west-2
-  MULLMANIA_AWS_ROLE_ARN: arn:aws:iam::166404899495:role/github-actions-role
   MULLMANIA_SITE_CONFIG: mullmania.site.json
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Checkout
@@ -38,6 +42,7 @@ jobs:
           setOutput('dotnet_version', config.dotnetVersion || '');
           setOutput('install_command', config.installCommand || '');
           setOutput('build_command', config.buildCommand || '');
+          setOutput('publish_dir', config.publishDir || '.');
           NODE
 
       - name: Setup Node
@@ -60,11 +65,22 @@ jobs:
         if: steps.config.outputs.build_command != ''
         run: ${{ steps.config.outputs.build_command }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          role-to-assume: ${{ env.MULLMANIA_AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
-      - name: Deploy site
-        run: bash deploy.sh apply --config ${{ env.MULLMANIA_SITE_CONFIG }}
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ steps.config.outputs.publish_dir }}
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

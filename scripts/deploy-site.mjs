@@ -17,9 +17,27 @@ import path from 'path';
 const execFileAsync = promisify(execFile);
 
 const TARGET_REGION = 'us-west-2';
-const TARGET_HOSTING_BUCKET = 'mullmania.com';
-const TARGET_DATA_BUCKET = 'mullmania.com-data';
 const DEFAULT_DATA_PREFIX = 'data';
+const DEFAULT_BASE_URL = 'mullmania.com';
+
+function resolveDeploymentTarget(baseUrl) {
+  // Handle the mikesendpoint.com bucket naming exception
+  // mikesendpoint.com stores EVERYTHING in mikesendpoint-sites (no separate data bucket)
+  if (baseUrl === 'mikesendpoint.com') {
+    return {
+      hostingBucket: 'mikesendpoint-sites',
+      dataBucket: 'mikesendpoint-sites',  // Same bucket for metadata
+      archiveBucket: 'mikesendpoint-sites',  // Same bucket for archives
+    };
+  }
+  
+  // Standard pattern for other domains (mullmania.com, etc.)
+  return {
+    hostingBucket: baseUrl,
+    dataBucket: `${baseUrl}-data`,
+    archiveBucket: `${baseUrl}-archive`,
+  };
+}
 
 async function main() {
   const { mode, options } = parseArgs(process.argv.slice(2));
@@ -99,6 +117,12 @@ function parseArgs(argv) {
           index += 1;
         }
         break;
+      case '--base-url':
+        options.baseUrl = requireValue(flag, value);
+        if (inlineValue === undefined) {
+          index += 1;
+        }
+        break;
       case '--site':
         options.siteId = requireValue(flag, value);
         if (inlineValue === undefined) {
@@ -169,6 +193,7 @@ function loadConfig(explicitPath) {
 function discoverConfigPath() {
   const candidates = [
     path.resolve(process.cwd(), 'mullmania.site.json'),
+    path.resolve(process.cwd(), 'site.json'),
     path.resolve(process.cwd(), '.mullmania', 'site.json'),
   ];
 
@@ -177,14 +202,19 @@ function discoverConfigPath() {
 
 async function resolveOptions(loadedConfig, options) {
   const config = loadedConfig.config;
+  
+  // Resolve base URL from CLI, environment, or default
+  const baseUrl = options.baseUrl || process.env.DEPLOY_BASE_URL || DEFAULT_BASE_URL;
+  const deploymentTarget = resolveDeploymentTarget(baseUrl);
+  
   const siteId = resolveSiteId(options.siteId ?? config.siteId);
   if (!siteId) {
-    throw new Error(`A site id is required. Provide --site or set siteId in mullmania.site.json.`);
+    throw new Error(`A site id is required. Provide --site or set siteId in mullmania.site.json or site.json.`);
   }
 
   const sourceDirValue = options.sourceDir ?? config.publishDir ?? config.sourceDir;
   if (!sourceDirValue) {
-    throw new Error(`A publish directory is required. Provide --source or set publishDir in mullmania.site.json.`);
+    throw new Error(`A publish directory is required. Provide --source or set publishDir in mullmania.site.json or site.json.`);
   }
 
   const sourceDir = resolveMaybeRelative(sourceDirValue, loadedConfig.configDir);
@@ -207,13 +237,18 @@ async function resolveOptions(loadedConfig, options) {
   const notes = Array.from(new Set([...(config.notes ? [config.notes] : []), ...(options.note ? [options.note] : [])]));
   const publishContext = await detectPublishContext(sourceDir);
   const cacheControlRules = normalizeCacheControlRules(config.cacheControl);
+  const cloudfront = normalizeCloudFrontConfig(config.cloudfront);
 
   return {
     configPath: loadedConfig.configPath,
     configDir: loadedConfig.configDir,
     rawConfig: config,
+    baseUrl,
+    hostingBucket: deploymentTarget.hostingBucket,
+    dataBucket: deploymentTarget.dataBucket,
+    archiveBucket: deploymentTarget.archiveBucket,
     siteId,
-    host: siteId === '_root' ? 'mullmania.com' : `${siteId}.mullmania.com`,
+    host: siteId === '_root' ? baseUrl : `${siteId}.${baseUrl}`,
     sourceDir,
     dataDir,
     dataPrefix,
@@ -225,6 +260,7 @@ async function resolveOptions(loadedConfig, options) {
     notes,
     publishContext,
     cacheControlRules,
+    cloudfront,
   };
 }
 
@@ -239,6 +275,27 @@ function normalizeCacheControlRules(value) {
       pattern: pattern.trim(),
       cacheControl: cacheControl.trim(),
     }));
+}
+
+function normalizeCloudFrontConfig(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const distributionId = value.distributionId ?? value.distribution ?? null;
+  const invalidate = value.invalidate === true;
+  const paths = Array.isArray(value.paths) && value.paths.length > 0 
+    ? value.paths 
+    : ['/*'];
+
+  if (!distributionId || !invalidate) {
+    return null;
+  }
+
+  return {
+    distributionId: distributionId.trim(),
+    paths,
+  };
 }
 
 function resolveMaybeRelative(value, baseDir) {
@@ -269,7 +326,7 @@ async function detectPublishContext(sourceDir) {
     }
   }
 
-  const github = process.env.GITHUB_ACTIONS === 'true'
+  let github = process.env.GITHUB_ACTIONS === 'true'
     ? {
         actions: true,
         repository: process.env.GITHUB_REPOSITORY ?? null,
@@ -294,7 +351,46 @@ async function detectPublishContext(sourceDir) {
     remote: await tryExecAndTrim('git', ['remote', 'get-url', 'origin'], gitRoot),
   };
 
+  const derivedRepository = parseGitHubRepository(git.remote);
+  if (github) {
+    github = {
+      ...github,
+      repository: github.repository ?? derivedRepository,
+      sha: github.sha ?? git.commit,
+    };
+  } else if (derivedRepository) {
+    github = {
+      actions: false,
+      repository: derivedRepository,
+      ref: null,
+      sha: git.commit,
+      runId: null,
+      runNumber: null,
+    };
+  }
+
   return { github, git };
+}
+
+function parseGitHubRepository(remoteUrl) {
+  if (!remoteUrl) {
+    return null;
+  }
+
+  const trimmed = String(remoteUrl).trim();
+  const patterns = [
+    /^https?:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/i,
+    /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
 }
 
 async function tryExecAndTrim(command, args, cwd) {
@@ -317,7 +413,7 @@ async function execAndTrim(command, args, cwd) {
 async function buildPlan(options) {
   const sourceFiles = listFiles(options.sourceDir);
   const dataFiles = options.dataDir ? listFiles(options.dataDir) : [];
-  const existingCatalog = await readRemoteJsonIfExists(TARGET_DATA_BUCKET, '_catalog/sites.json', []);
+  const existingCatalog = await readRemoteJsonIfExists(options.dataBucket, '_catalog/sites.json', []);
   const existingEntry = existingCatalog.find((entry) => entry.siteId === options.siteId) ?? null;
   const publishedAt = new Date().toISOString();
 
@@ -327,8 +423,8 @@ async function buildPlan(options) {
     publishedAt,
     target: {
       region: TARGET_REGION,
-      hostingBucket: TARGET_HOSTING_BUCKET,
-      dataBucket: TARGET_DATA_BUCKET,
+      hostingBucket: options.hostingBucket,
+      dataBucket: options.dataBucket,
       hostedPrefix: `${options.siteId}/`,
       dataPrefix: `${options.siteId}/${options.dataPrefix}/`,
     },
@@ -397,7 +493,7 @@ function walk(rootDir, currentDir, files) {
 async function applyPlan(plan) {
   await syncDirectory(
     plan.sourceDir,
-    `s3://${TARGET_HOSTING_BUCKET}/${plan.siteId}/`,
+    `s3://${plan.hostingBucket}/${plan.siteId}/`,
     plan.deleteHosting,
     plan.exclude,
     plan.cacheControlRules
@@ -406,15 +502,15 @@ async function applyPlan(plan) {
   if (plan.dataDir) {
     await syncDirectory(
       plan.dataDir,
-      `s3://${TARGET_DATA_BUCKET}/${plan.siteId}/${plan.dataPrefix}/`,
+      `s3://${plan.dataBucket}/${plan.siteId}/${plan.dataPrefix}/`,
       plan.deleteData,
       plan.dataExclude,
       []
     );
   }
 
-  await putRemoteJson(TARGET_DATA_BUCKET, `${plan.siteId}/site.json`, plan.metadata);
-  await putRemoteJson(TARGET_HOSTING_BUCKET, `${plan.siteId}/.publish.json`, {
+  await putRemoteJson(plan.dataBucket, `${plan.siteId}/site.json`, plan.metadata);
+  await putRemoteJson(plan.hostingBucket, `${plan.siteId}/.publish.json`, {
     siteId: plan.siteId,
     host: plan.host,
     publishedAt: plan.publishedAt,
@@ -422,14 +518,19 @@ async function applyPlan(plan) {
     counts: plan.metadata.counts,
   });
 
-  const catalogEntries = await readRemoteJsonIfExists(TARGET_DATA_BUCKET, '_catalog/sites.json', []);
+  const catalogEntries = await readRemoteJsonIfExists(plan.dataBucket, '_catalog/sites.json', []);
   const mergedCatalog = upsertCatalogEntry(catalogEntries, plan);
-  await putRemoteJson(TARGET_DATA_BUCKET, '_catalog/sites.json', mergedCatalog);
+  await putRemoteJson(plan.dataBucket, '_catalog/sites.json', mergedCatalog);
   await putRemoteJson(
-    TARGET_DATA_BUCKET,
+    plan.dataBucket,
     '_catalog/summary.json',
-    buildCatalogSummary(mergedCatalog, plan.publishedAt, plan.siteId)
+    buildCatalogSummary(mergedCatalog, plan.publishedAt, plan.siteId, plan.hostingBucket, plan.dataBucket, plan.archiveBucket)
   );
+
+  // Invalidate CloudFront cache if configured
+  if (plan.cloudfront) {
+    await invalidateCloudFront(plan.cloudfront);
+  }
 }
 
 async function syncDirectory(sourceDir, targetUri, deleteExtraneous, excludePatterns, cacheControlRules) {
@@ -444,8 +545,28 @@ async function syncDirectory(sourceDir, targetUri, deleteExtraneous, excludePatt
 
   await aws(args);
 
+  if (deleteExtraneous && (excludePatterns ?? []).length > 0) {
+    await pruneExcludedTargets(targetUri, excludePatterns);
+  }
+
   if ((cacheControlRules ?? []).length > 0) {
     await applyCacheControlRules(sourceDir, targetUri, excludePatterns, cacheControlRules);
+  }
+}
+
+async function pruneExcludedTargets(targetUri, excludePatterns) {
+  for (const pattern of new Set(excludePatterns ?? [])) {
+    await aws([
+      's3',
+      'rm',
+      targetUri,
+      '--recursive',
+      '--only-show-errors',
+      '--exclude',
+      '*',
+      '--include',
+      pattern,
+    ]);
   }
 }
 
@@ -497,7 +618,7 @@ function upsertCatalogEntry(entries, plan) {
   return [...withoutCurrent, entry].sort((left, right) => left.siteId.localeCompare(right.siteId));
 }
 
-function buildCatalogSummary(entries, publishedAt, siteId) {
+function buildCatalogSummary(entries, publishedAt, siteId, hostingBucket, dataBucket, archiveBucket) {
   const hostedCount = entries.filter((entry) => entry.hasHostedSite).length;
   const dataCount = entries.filter((entry) => entry.hasData).length;
   const syntheticCount = entries.filter((entry) => entry.syntheticIndex).length;
@@ -506,9 +627,9 @@ function buildCatalogSummary(entries, publishedAt, siteId) {
   return {
     generatedAt: publishedAt,
     updatedAt: publishedAt,
-    hostedBucket: TARGET_HOSTING_BUCKET,
-    dataBucket: TARGET_DATA_BUCKET,
-    archiveBucket: 'mullmania.com-archive',
+    hostedBucket: hostingBucket,
+    dataBucket: dataBucket,
+    archiveBucket: archiveBucket,
     stats: {
       catalogSiteCount: entries.length,
       hostedSiteCount: hostedCount,
@@ -538,7 +659,7 @@ function countBy(entries, pickKey) {
 }
 
 async function readRemoteJsonIfExists(bucket, key, fallbackValue) {
-  const tempDir = mkdtempSync(path.join(tmpdir(), 'mullmania-publish-read-'));
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'site-publish-read-'));
   const tempFile = path.join(tempDir, 'payload.json');
 
   try {
@@ -554,7 +675,7 @@ async function readRemoteJsonIfExists(bucket, key, fallbackValue) {
 }
 
 async function putRemoteJson(bucket, key, payload) {
-  const tempDir = mkdtempSync(path.join(tmpdir(), 'mullmania-publish-write-'));
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'site-publish-write-'));
   const tempFile = path.join(tempDir, 'payload.json');
 
   try {
@@ -584,13 +705,31 @@ async function aws(args) {
   });
 }
 
+async function invalidateCloudFront(cloudfront) {
+  const args = [
+    'cloudfront',
+    'create-invalidation',
+    '--distribution-id',
+    cloudfront.distributionId,
+    '--paths',
+    ...cloudfront.paths,
+  ];
+
+  try {
+    await aws(args);
+  } catch (error) {
+    console.warn(`Warning: CloudFront invalidation failed: ${error.message}`);
+  }
+}
+
 function printPlan(plan) {
   console.log(`Publish plan ready.`);
+  console.log(`Base URL: ${plan.baseUrl}`);
   console.log(`Site: ${plan.siteId}`);
   console.log(`Host: https://${plan.host}/`);
   console.log(`Source: ${plan.sourceDir}`);
   console.log(`Hosting files: ${plan.sourceFiles.length} (${formatBytes(sumBytes(plan.sourceFiles))})`);
-  console.log(`Hosting target: s3://${TARGET_HOSTING_BUCKET}/${plan.siteId}/`);
+  console.log(`Hosting target: s3://${plan.hostingBucket}/${plan.siteId}/`);
   console.log(`Delete stale hosted files: ${plan.deleteHosting ? 'yes' : 'no'}`);
   if (plan.exclude.length > 0) {
     console.log(`Hosting excludes: ${plan.exclude.join(', ')}`);
@@ -599,7 +738,7 @@ function printPlan(plan) {
   if (plan.dataDir) {
     console.log(`Data source: ${plan.dataDir}`);
     console.log(`Data files: ${plan.dataFiles.length} (${formatBytes(sumBytes(plan.dataFiles))})`);
-    console.log(`Data target: s3://${TARGET_DATA_BUCKET}/${plan.siteId}/${plan.dataPrefix}/`);
+    console.log(`Data target: s3://${plan.dataBucket}/${plan.siteId}/${plan.dataPrefix}/`);
     console.log(`Delete stale data files: ${plan.deleteData ? 'yes' : 'no'}`);
     if (plan.dataExclude.length > 0) {
       console.log(`Data excludes: ${plan.dataExclude.join(', ')}`);
@@ -625,20 +764,30 @@ function printPlan(plan) {
   } else {
     console.log(`Catalog: new entry will be created`);
   }
+
+  if (plan.cloudfront) {
+    console.log(`CloudFront: invalidation enabled for ${plan.cloudfront.distributionId}`);
+    console.log(`CloudFront paths: ${plan.cloudfront.paths.join(', ')}`);
+  }
 }
 
 function printApplySummary(plan) {
   console.log(`Publish complete.`);
   console.log(`Live URL: https://${plan.host}/`);
-  console.log(`Hosted prefix: s3://${TARGET_HOSTING_BUCKET}/${plan.siteId}/`);
-  console.log(`Site metadata: s3://${TARGET_DATA_BUCKET}/${plan.siteId}/site.json`);
+  console.log(`Hosted prefix: s3://${plan.hostingBucket}/${plan.siteId}/`);
+  console.log(`Site metadata: s3://${plan.dataBucket}/${plan.siteId}/site.json`);
   if (plan.dataDir) {
-    console.log(`Data prefix: s3://${TARGET_DATA_BUCKET}/${plan.siteId}/${plan.dataPrefix}/`);
+    console.log(`Data prefix: s3://${plan.dataBucket}/${plan.siteId}/${plan.dataPrefix}/`);
   }
   if (plan.cacheControlRules.length > 0) {
     console.log(`Cache metadata refreshed for: ${plan.cacheControlRules.map((rule) => rule.pattern).join(', ')}`);
   }
-  console.log(`Catalog updated: s3://${TARGET_DATA_BUCKET}/_catalog/sites.json`);
+  console.log(`Catalog updated: s3://${plan.dataBucket}/_catalog/sites.json`);
+  if (plan.cloudfront) {
+    console.log(`CloudFront cache invalidated for distribution: ${plan.cloudfront.distributionId}`);
+    console.log(`Invalidation paths: ${plan.cloudfront.paths.join(', ')}`);
+    console.log(`Note: Cache propagation takes 30-60 seconds`);
+  }
 }
 
 function normalizeSiteId(value) {
