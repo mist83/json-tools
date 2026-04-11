@@ -59,15 +59,15 @@
 
       function focusSections(data) {
         const openButtons = [
-          linkButton(data.liveLabel || 'Open live surface', data.liveUrl, 'primary', 'ti ti-player-play'),
+          linkButton(data.liveLabel || 'Open live site', data.liveUrl, 'primary', 'ti ti-player-play'),
           linkButton('Open Mullmania', data.mullmaniaUrl, data.liveUrl === data.mullmaniaUrl ? 'primary' : 'secondary', 'ti ti-world'),
-          linkButton('Open GitHub front door', data.pagesUrl, 'secondary', 'ti ti-browser'),
+          linkButton('Open GitHub Pages', data.pagesUrl, 'secondary', 'ti ti-browser'),
           linkButton('View repo', data.githubUrl, 'secondary', 'ti ti-brand-github'),
         ].filter(Boolean);
 
         return [
           UI.section({
-            eyebrow: 'Public Front Door',
+            eyebrow: 'Site',
             title: data.title,
             description: data.description,
             children: [
@@ -75,20 +75,20 @@
                 columns: 2,
                 children: [
                   UI.card({
-                    title: 'Proof',
+                    title: 'Poster',
                     subtitle: data.posterNote,
                     body: proofImage(data),
                   }),
                   UI.card({
-                    title: 'Open the actual thing',
+                    title: 'Live site',
                     subtitle: data.publishDir !== './docs'
-                      ? 'Mullmania is wired to publish the repo surface, not just this front door.'
-                      : 'This repo does not have a separate committed app surface yet, so the front door stays honest about that.',
+                      ? 'The live site is published from this repo.'
+                      : 'This repo only publishes this docs page right now.',
                     body: UI.stack({
                       gap: 'sm',
                       children: [
                         UI.status({
-                          label: data.publishDir !== './docs' ? 'Actual app publish path' : 'Front-door-only publish path',
+                          label: data.publishDir !== './docs' ? 'Live site path' : 'Docs page path',
                           tone: data.publishDir !== './docs' ? 'success' : 'warning',
                         }),
                         UI.text({
@@ -105,7 +105,7 @@
           }),
           UI.section({
             eyebrow: 'Delivery',
-            title: 'Shipping facts',
+            title: 'Site facts',
             children: [
               UI.grid({
                 columns: 4,
@@ -127,10 +127,10 @@
                   }),
                   UI.stat({
                     label: 'Poster',
-                    value: data.posterKind === 'showcase-reel' ? 'real' : 'placeholder',
+                    value: data.posterKind === 'showcase-reel' ? 'published' : 'placeholder',
                     icon: 'ti ti-photo',
                     badge: {
-                      label: data.posterKind === 'showcase-reel' ? 'evidence' : 'fallback',
+                      label: data.posterKind === 'showcase-reel' ? 'published' : 'placeholder',
                       tone: data.posterKind === 'showcase-reel' ? 'success' : 'warning',
                     },
                   }),
@@ -144,8 +144,8 @@
       function evidenceSections(data) {
         return [
           UI.section({
-            eyebrow: 'Evidence',
-            title: 'Links and proof',
+            eyebrow: 'Links',
+            title: 'Links and files',
             children: [
               UI.table({
                 columns: [
@@ -169,12 +169,12 @@
                 rows: [
                   { label: 'Repo', value: data.repo },
                   { label: 'GitHub', value: data.githubUrl, href: data.githubUrl },
-                  { label: 'GitHub front door', value: data.pagesUrl, href: data.pagesUrl },
-                  { label: 'Mullmania mirror', value: data.mullmaniaUrl, href: data.mullmaniaUrl },
-                  ...(data.liveUrl ? [{ label: data.liveLabel || 'Live surface', value: data.liveUrl, href: data.liveUrl }] : []),
-                  { label: 'Canonical artifacts', value: data.artifactBaseUrl, href: data.artifactBaseUrl },
-                  { label: 'Canonical poster', value: data.posterUrl, href: data.posterUrl },
-                  { label: 'Canonical manifest', value: data.manifestUrl, href: data.manifestUrl },
+                  { label: 'GitHub Pages', value: data.pagesUrl, href: data.pagesUrl },
+                  { label: 'Mullmania site', value: data.mullmaniaUrl, href: data.mullmaniaUrl },
+                  ...(data.liveUrl ? [{ label: data.liveLabel || 'Live site', value: data.liveUrl, href: data.liveUrl }] : []),
+                  { label: 'Demo files', value: data.artifactBaseUrl, href: data.artifactBaseUrl },
+                  { label: 'Poster file', value: data.posterUrl, href: data.posterUrl },
+                  { label: 'Manifest file', value: data.manifestUrl, href: data.manifestUrl },
                   { label: 'Local poster', value: data.posterPath, href: data.posterPath },
                   { label: 'Local manifest', value: data.manifestPath, href: data.manifestPath },
                   { label: 'Deploy mode', value: data.deployMode || 'unknown' },
@@ -186,7 +186,7 @@
           }),
           UI.section({
             eyebrow: 'Poster',
-            title: data.posterKind === 'showcase-reel' ? 'Real proof asset' : 'Fallback poster',
+            title: data.posterKind === 'showcase-reel' ? 'Poster' : 'Placeholder poster',
             description: data.posterNote,
             children: [
               proofImage(data),
@@ -198,8 +198,8 @@
                   })
                 : UI.alert({
                     tone: 'info',
-                    title: 'Video optional',
-                    message: 'No demo video is published yet. The contract leaves the slot open without pretending otherwise.',
+                    title: 'No video yet',
+                    message: 'No demo video is published yet.',
                   }),
             ],
             actions: [
@@ -215,12 +215,12 @@
         const data = await response.json();
         const variant = currentVariant();
 
-        document.title = data.title + ' · mist83 front door';
+        document.title = data.title + ' · mist83 site';
 
         UI.mount('#app', {
           icon: 'ti ti-door-enter',
           title: data.title,
-          subtitle: 'ui.mullmania.com dogfood front door. Switch views instead of inventing a second shell.',
+          subtitle: 'Site summary and links.',
           actions: [
             UI.button({
               label: 'Focus',

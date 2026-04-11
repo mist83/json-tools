@@ -1,6 +1,7 @@
 {
   "siteId": "json-tools",
-  "publishDir": "./docs",
+  "description": "Interactive JSON scanner, validator, and path tools demo.",
+  "publishDir": ".",
   "dataDir": null,
   "dataPrefix": "data",
   "delete": true,
@@ -28,5 +29,5 @@
     "public-frontdoor",
     "repo-artifacts"
   ],
-  "notes": "Deterministic public front door for GitHub Pages plus canonical demo asset links."
+  "notes": "Repo docs page with links to the site and demo files."
 }
