@@ -1,0 +1,7 @@
+{
+  "tabs": [
+    { "id": "home", "label": "Home", "icon": "ti ti-home", "htmlSource": "/tabs/home.html" },
+    { "id": "tools", "label": "Tools", "icon": "ti ti-tool", "htmlSource": "/tabs/tools.html" },
+    { "id": "about", "label": "About", "icon": "ti ti-info-circle", "htmlSource": "/tabs/about.html" }
+  ]
+}

@@ -99,13 +99,8 @@
 
     <script>
         window.addEventListener('ui-ready', async () => {
-            const sitemap = {
-                tabs: [
-                    { id: 'home',  label: 'Home',  icon: 'ti ti-home',        htmlSource: '/tabs/home.html' },
-                    { id: 'tools', label: 'Tools', icon: 'ti ti-tool',        htmlSource: '/tabs/tools.html' },
-                    { id: 'about', label: 'About', icon: 'ti ti-info-circle', htmlSource: '/tabs/about.html' }
-                ]
-            };
+            const sitemapResponse = await fetch('./sitemap.json', { cache: 'no-store' });
+            const sitemap = await sitemapResponse.json();
 
             window._tabsEverywhere = new TabsEverywhere({
                 tabsContainerId: 'tabs-container',
