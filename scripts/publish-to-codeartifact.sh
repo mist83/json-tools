@@ -106,8 +106,40 @@ for pkg in "${NUPKGS[@]}"; do
         --skip-duplicate
 done
 
-log "done."
+# ---- 5. Refresh packages.mullmania.com -------------------------------------
+#
+# After a successful push, regenerate the package-garden site so the new
+# version shows up on packages.mullmania.com. Clones the package-garden
+# repo to a temp dir and runs its update-index.sh. Non-fatal: if the
+# clone or refresh fails (e.g. in CI without cross-repo auth), the
+# publish itself still counts — the site just gets refreshed on the
+# next local run.
+#
+# Set UPDATE_INDEX=0 to skip this step entirely.
+UPDATE_INDEX="${UPDATE_INDEX:-1}"
+
+if [[ "$UPDATE_INDEX" == "1" ]]; then
+    PG_DIR="$(mktemp -d)"
+    trap 'rm -rf "$PG_DIR"' EXIT
+
+    log "refreshing packages.mullmania.com (cloning package-garden)…"
+    if gh repo clone mist83/package-garden "$PG_DIR" -- --depth 1 --quiet 2>/dev/null \
+        || git clone --depth 1 --quiet git@github.com:mist83/package-garden.git "$PG_DIR" 2>/dev/null; then
+        if "$PG_DIR/scripts/update-index.sh"; then
+            log "packages.mullmania.com refreshed."
+        else
+            log "WARN: update-index.sh failed — site may be stale. Package push itself succeeded."
+        fi
+    else
+        log "WARN: could not clone mist83/package-garden (cross-repo auth needed in CI)."
+        log "      Package push itself succeeded; run the refresh locally to update the site."
+    fi
+fi
+
 log ""
 log "consumers (same machine, same user) install with:"
 log "  aws codeartifact login --tool dotnet --domain $DOMAIN --repository $REPO --region $AWS_REGION"
 log "  dotnet add package JsonUtilities"
+log ""
+log "browse all packages at:"
+log "  https://packages.mullmania.com/"
