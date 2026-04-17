@@ -44,15 +44,23 @@ log "domain:     $DOMAIN (owner $DOMAIN_OWNER)"
 log "repository: $REPO"
 log "project:    $PROJECT"
 
-# ---- 2. Fetch ephemeral auth + endpoint ------------------------------------
+# ---- 2. Wire dotnet → CodeArtifact -----------------------------------------
+#
+# `aws codeartifact login --tool dotnet` writes a NuGet source with HTTP
+# Basic auth (user "aws", password = short-lived token) into the local
+# user's NuGet.Config. This is the AWS-recommended path and it's what
+# both local invocations and CI runners use — the runner's config is
+# ephemeral so nothing leaks.
+#
+# We also capture the endpoint separately so we can report the exact
+# source URL in the done-message.
 
-log "fetching auth token (valid ~12h)…"
-CODEARTIFACT_AUTH_TOKEN="$(aws codeartifact get-authorization-token \
+log "wiring dotnet → CodeArtifact (this writes a source into NuGet.Config)…"
+aws codeartifact login --tool dotnet \
     --domain "$DOMAIN" --domain-owner "$DOMAIN_OWNER" \
-    --region "$AWS_REGION" \
-    --query authorizationToken --output text)"
+    --repository "$REPO" --region "$AWS_REGION" \
+    --duration-seconds 3600 >/dev/null
 
-log "fetching repository endpoint…"
 ENDPOINT="$(aws codeartifact get-repository-endpoint \
     --domain "$DOMAIN" --domain-owner "$DOMAIN_OWNER" \
     --repository "$REPO" --format nuget \
@@ -60,7 +68,9 @@ ENDPOINT="$(aws codeartifact get-repository-endpoint \
     --query repositoryEndpoint --output text)"
 
 SOURCE_URL="${ENDPOINT}v3/index.json"
-log "source url: $SOURCE_URL"
+SOURCE_NAME="${DOMAIN}/${REPO}"
+log "source name: $SOURCE_NAME"
+log "source url:  $SOURCE_URL"
 
 # ---- 3. Pack ----------------------------------------------------------------
 
@@ -90,19 +100,14 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 for pkg in "${NUPKGS[@]}"; do
-    log "pushing $(basename "$pkg")…"
+    log "pushing $(basename "$pkg") → $SOURCE_NAME…"
     dotnet nuget push "$pkg" \
-        --source "$SOURCE_URL" \
-        --api-key "$CODEARTIFACT_AUTH_TOKEN" \
+        --source "$SOURCE_NAME" \
         --skip-duplicate
 done
 
 log "done."
 log ""
-log "consumers install with:"
-log "  dotnet nuget add source \"$SOURCE_URL\" \\"
-log "    --name mullmania \\"
-log "    --username aws \\"
-log "    --password \"\$CODEARTIFACT_AUTH_TOKEN\" \\"
-log "    --store-password-in-clear-text"
+log "consumers (same machine, same user) install with:"
+log "  aws codeartifact login --tool dotnet --domain $DOMAIN --repository $REPO --region $AWS_REGION"
 log "  dotnet add package JsonUtilities"
