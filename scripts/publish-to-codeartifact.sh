@@ -125,6 +125,15 @@ if [[ "$UPDATE_INDEX" == "1" ]]; then
     log "refreshing packages.mullmania.com (cloning package-garden)…"
     if gh repo clone mist83/package-garden "$PG_DIR" -- --depth 1 --quiet 2>/dev/null \
         || git clone --depth 1 --quiet git@github.com:mist83/package-garden.git "$PG_DIR" 2>/dev/null; then
+
+        # Self-register so packages.mullmania.com shows source-repo + demo links
+        # for this library without anyone hand-editing packages-meta.json.
+        (cd "$PG_DIR" && PKG_NAME="JsonUtilities" \
+            PKG_SOURCE_REPO="mist83/json-tools" \
+            PKG_SOURCE_SITE="https://json-utilities.mullmania.com/" \
+            PKG_DESCRIPTION="High-performance C# library for scanning large JSON files with byte-position tracking, path extraction, trie indexing, and semantic search — without full deserialization." \
+            ./scripts/register-package.sh) || log "WARN: register-package failed (non-fatal)"
+
         if "$PG_DIR/scripts/update-index.sh"; then
             log "packages.mullmania.com refreshed."
         else
