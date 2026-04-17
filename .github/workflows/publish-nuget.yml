@@ -1,0 +1,40 @@
+name: Publish NuGet package
+
+# Triggers on:
+#   - pushing a version tag (vX.Y.Z) — the normal release path
+#   - manual dispatch from the Actions tab — for reruns / experiments
+#
+# Both paths end up executing the same script that the repo owner runs
+# locally (scripts/publish-to-codeartifact.sh). CI is just "local dev,
+# but on a fresh Ubuntu box with ephemeral AWS credentials."
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  id-token: write    # required for the OIDC -> STS -> AssumeRole handshake
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::166404899495:role/github-actions-role
+          aws-region: us-west-2
+          role-session-name: gh-actions-publish-nuget
+
+      - name: Publish to CodeArtifact
+        run: ./scripts/publish-to-codeartifact.sh
