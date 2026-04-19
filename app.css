@@ -1,0 +1,175 @@
+/* App-specific styles. Anything that exists in ui.mullmania.com belongs there, not here. */
+
+.header-accent { color: var(--color-secondary); }
+
+.header-badges {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+#tabs-container {
+    min-height: 47px;
+    align-content: stretch;
+    overflow-y: hidden;
+}
+
+#tabs-container .tab { align-self: stretch; }
+
+@media (max-width: 960px) {
+    .header {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+        align-items: start;
+    }
+    .header-badges {
+        grid-auto-flow: row;
+        grid-template-columns: repeat(2, minmax(0, max-content));
+        justify-content: start;
+    }
+}
+
+@media (max-width: 560px) {
+    .header-badges { grid-template-columns: minmax(0, 1fr); }
+}
+
+.clipboard-fallback {
+    position: fixed;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Tab-internal panels: only the active sidebar item's panel is shown. */
+.tool-panel,
+.home-panel,
+.about-panel { display: none; }
+
+.tool-panel.active,
+.home-panel.active,
+.about-panel.active { display: block; }
+
+/* File drop zone (no framework primitive for this). */
+.drop-zone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xl);
+    text-align: center;
+    cursor: pointer;
+    margin: var(--space-sm) 0;
+}
+.drop-zone:hover,
+.drop-zone.is-dragover { border-color: var(--color-primary); }
+.drop-zone-icon { font-size: 2rem; color: var(--text-muted); }
+.drop-zone-label { color: var(--text-muted); margin: var(--space-sm) 0 0; }
+
+.mode-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-md);
+    align-items: end;
+}
+
+/* Visualization primitives (byte ranges, throughput, code blocks). */
+.byte-pos-bar {
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    margin-top: 4px;
+    position: relative;
+    overflow: hidden;
+}
+.byte-pos-fill {
+    position: absolute;
+    height: 100%;
+    background: var(--color-warning);
+    border-radius: 2px;
+    min-width: 3px;
+}
+
+.throughput-bar {
+    height: 6px;
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin: var(--space-sm) 0 var(--space-md);
+}
+.throughput-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+    width: 0%;
+    transition: width 0.6s ease;
+}
+
+.chip-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 3px 8px;
+    font-size: var(--text-xs);
+}
+
+.code-block { position: relative; }
+.code-block pre {
+    margin: 0;
+    border-radius: 0;
+    max-height: 160px;
+    overflow-y: auto;
+    border-left: none;
+}
+
+.obj-card {
+    margin-bottom: var(--space-sm);
+    padding: 0;
+    overflow: hidden;
+}
+.obj-header {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+.obj-meta {
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+.obj-hash {
+    padding: 4px var(--space-md);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.match-chips {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 4px;
+}
+
+.trie-matches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.sidebar-dataset-item { cursor: pointer; }
+
+/* Inline label-suffix used inside <label> tags ("blank = auto-detect", "click to toggle"). */
+.label-hint { font-weight: var(--weight-normal); }

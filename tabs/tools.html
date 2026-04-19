@@ -1,25 +1,4 @@
-<style>
-    /* Tool-specific styles not covered by the canonical framework */
-    .tool-panel { display: none; }
-    .tool-panel.active { display: block; }
-    .byte-pos-bar { height: 4px; background: var(--border-color); border-radius: 2px; margin-top: 4px; position: relative; overflow: hidden; }
-    .byte-pos-fill { position: absolute; height: 100%; background: var(--color-warning); border-radius: 2px; min-width: 3px; }
-    .throughput-bar { height: 6px; background: var(--border-color); border-radius: var(--radius-sm); overflow: hidden; margin: var(--space-sm) 0 var(--space-md); }
-    .throughput-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-sm); width: 0%; transition: width 0.6s ease; }
-    .chip-row { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 6px; margin-top: 6px; }
-    .copy-btn { position: absolute; top: 6px; right: 6px; padding: 3px 8px; font-size: var(--text-xs); }
-    .code-block { position: relative; }
-    .code-block pre { margin: 0; border-radius: 0; max-height: 160px; overflow-y: auto; border-left: none; }
-    .obj-header { padding: var(--space-sm) var(--space-md); background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); }
-    .obj-meta { padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--border-color); font-size: var(--text-xs); color: var(--text-secondary); }
-    .obj-hash { padding: 4px var(--space-md); font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono); border-bottom: 1px solid var(--border-color); }
-    .obj-card { margin-bottom: var(--space-sm); padding: 0; overflow: hidden; }
-    .match-chips { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 4px; }
-    .trie-matches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; padding: var(--space-md); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
-    .sidebar-dataset-item { cursor: pointer; }
-</style>
-
-<div class="layout sidebar-content" id="tools-layout">
+<div class="layout workspace" id="tools-layout">
 
     <!-- Sidebar (Tools tab only) -->
     <div class="sidebar" id="tools-sidebar">
@@ -65,7 +44,7 @@
 
             <div class="grid-column gap-sm mb-md">
                 <div>
-                    <label>Target Collections <span class="text-muted" style="font-weight:normal">(comma-separated, blank = auto-detect all)</span></label>
+                    <label>Target Collections <span class="text-muted label-hint">(comma-separated, blank = auto-detect all)</span></label>
                     <input type="text" id="byte-range-collections" placeholder="products, reviews, orders">
                 </div>
                 <div class="grid-column gap-xs">
@@ -108,7 +87,7 @@
                 <div>
                     <label>
                         Search Term (prefix):
-                        <span id="trie-live-indicator" class="text-success hidden text-xs" style="font-weight:normal">
+                        <span id="trie-live-indicator" class="text-success hidden text-xs label-hint">
                             <i class="ti ti-circle-filled pulse"></i> live
                         </span>
                     </label>
@@ -130,7 +109,7 @@
 
             <div class="grid-column gap-sm mb-md">
                 <div>
-                    <label>Index These Fields <span class="text-muted" style="font-weight:normal">(click to toggle)</span></label>
+                    <label>Index These Fields <span class="text-muted label-hint">(click to toggle)</span></label>
                     <div id="semantic-field-chips" class="chip-row"></div>
                 </div>
                 <div class="grid-2 gap-sm">
