@@ -1,95 +1,140 @@
-<style>
-    .drop-zone {
-        border: 2px dashed var(--border-color);
-        border-radius: var(--radius-sm);
-        padding: var(--space-xl);
-        text-align: center;
-        cursor: pointer;
-        margin: var(--space-sm) 0;
-    }
-    .drop-zone:hover { border-color: var(--color-primary); }
-    .drop-zone-icon { font-size: 2rem; color: var(--text-muted); }
-    .drop-zone-label { color: var(--text-muted); margin: var(--space-sm) 0 0; }
-    .mode-form { display: grid; grid-template-columns: 1fr auto; gap: var(--space-md); align-items: end; }
-</style>
+<div class="layout workspace" id="content-home">
 
-<div class="section active" id="content-home">
-    <h2><i class="ti ti-home"></i> Home</h2>
-    <p class="text-secondary">Load a JSON dataset to use across all tools, then choose where the work happens: hosted API, local API, or a browser-only privacy preview.</p>
-
-    <!-- Active dataset status -->
-    <div id="home-active-status"></div>
-
-    <div class="card mt-md">
-        <h3><i class="ti ti-switch-3"></i> Execution Mode</h3>
-        <p class="text-secondary text-sm">Pick how the demo runs before you try private data. <strong>Browser Preview</strong> keeps everything in this tab. <strong>Local API</strong> targets <code>http://localhost:5968</code>. <strong>Hosted API</strong> uses the public demo backend.</p>
-        <div class="mode-form">
-            <div>
-                <label for="execution-mode">Mode:</label>
-                <select id="execution-mode" onchange="setExecutionMode(this.value)">
-                    <option value="auto">Auto — localhost stays local, public site uses hosted API</option>
-                    <option value="localhost">Local API — http://localhost:5968</option>
-                    <option value="browser">Browser Preview — keep data in this tab</option>
-                    <option value="lambda">Hosted API — public demo backend</option>
-                </select>
+    <!-- Sidebar: data-load methods + execution mode -->
+    <div class="sidebar" id="home-sidebar">
+        <div class="sidebar-scroll">
+            <div class="sidebar-header">Active Dataset</div>
+            <div class="sidebar-item sidebar-dataset-item" id="home-sidebar-dataset" onclick="switchHomePanel('overview')">
+                <i class="ti ti-database"></i>
+                <span id="home-sidebar-dataset-label">No data loaded</span>
             </div>
-            <div id="execution-mode-status" class="text-secondary text-sm"></div>
+
+            <div class="sidebar-header">Get Started</div>
+            <div class="sidebar-item active" data-home-panel="overview" onclick="switchHomePanel('overview')">
+                <i class="ti ti-home"></i><span>Overview</span>
+            </div>
+            <div class="sidebar-item" data-home-panel="paste" onclick="switchHomePanel('paste')">
+                <i class="ti ti-clipboard"></i><span>Paste JSON</span>
+            </div>
+            <div class="sidebar-item" data-home-panel="upload" onclick="switchHomePanel('upload')">
+                <i class="ti ti-upload"></i><span>Upload File</span>
+            </div>
+            <div class="sidebar-item" data-home-panel="generate" onclick="switchHomePanel('generate')">
+                <i class="ti ti-wand"></i><span>Generate Dataset</span>
+            </div>
+
+            <div class="sidebar-header">Configuration</div>
+            <div class="sidebar-item" data-home-panel="execution" onclick="switchHomePanel('execution')">
+                <i class="ti ti-switch-3"></i><span>Execution Mode</span>
+            </div>
         </div>
     </div>
 
-    <!-- Three ways to load data -->
-    <div class="grid-3 gap-md mt-md">
+    <!-- Content: panels swap on sidebar click -->
+    <div class="content">
 
-        <!-- Paste -->
-        <div class="card">
-            <h3><i class="ti ti-clipboard"></i> Paste JSON</h3>
-            <p class="text-secondary text-sm">Paste any JSON directly.</p>
-            <textarea id="home-paste-json" rows="8" spellcheck="false" placeholder='{"products": [...], "reviews": [...]}'></textarea>
-            <div class="grid-column gap-sm mt-sm">
-                <input type="text" id="home-paste-name" placeholder="Dataset name (optional)">
-                <button class="btn-primary" onclick="loadFromPaste()"><i class="ti ti-check"></i> Use This Data</button>
+        <!-- ── Overview ──────────────────────────── -->
+        <div class="home-panel active" id="home-panel-overview">
+            <h2><i class="ti ti-home"></i> Home</h2>
+            <p class="text-secondary">Load a JSON dataset to use across all tools, then choose where the work happens: hosted API, local API, or a browser-only privacy preview.</p>
+
+            <div id="home-active-status"></div>
+
+            <div class="card">
+                <h3><i class="ti ti-info-circle"></i> Three ways to load data</h3>
+                <p class="text-secondary text-sm">Pick a method from the sidebar:</p>
+                <ul>
+                    <li><strong>Paste JSON</strong> — drop in any JSON snippet directly.</li>
+                    <li><strong>Upload File</strong> — load a local <code>.json</code> file (max 5 MB).</li>
+                    <li><strong>Generate Dataset</strong> — synthesize realistic fake data to stress-test the tools.</li>
+                </ul>
+                <p class="text-secondary text-sm mt-md">Once a dataset is active you can switch to <button class="btn-link" onclick="window.location.hash='tools'">Tools</button> to scan, index, and search it.</p>
             </div>
         </div>
 
-        <!-- Upload -->
-        <div class="card">
-            <h3><i class="ti ti-upload"></i> Upload File</h3>
-            <p class="text-secondary text-sm">Upload a local <code>.json</code> file (max 5 MB).</p>
-            <div id="home-drop-zone" class="drop-zone" onclick="document.getElementById('home-file-input').click()">
-                <i class="ti ti-file-upload drop-zone-icon"></i>
-                <p class="drop-zone-label">Click to browse or drag &amp; drop</p>
-            </div>
-            <input type="file" id="home-file-input" accept=".json" class="hidden">
-            <div id="home-upload-status" class="text-sm mt-sm"></div>
-        </div>
+        <!-- ── Paste ──────────────────────────────── -->
+        <div class="home-panel" id="home-panel-paste">
+            <h2><i class="ti ti-clipboard"></i> Paste JSON</h2>
+            <p class="text-secondary">Paste any JSON directly. It becomes the active dataset for all tools.</p>
 
-        <!-- Generate -->
-        <div class="card">
-            <h3><i class="ti ti-wand"></i> Generate Dataset</h3>
-            <p class="text-secondary text-sm">Generate realistic fake JSON to test the tools against.</p>
-            <div class="grid-column gap-sm">
-                <div>
-                    <label>Type:</label>
-                    <select id="gen-type">
-                        <option value="ecommerce">E-commerce (products, reviews, orders)</option>
-                        <option value="movies">Movies &amp; TV (title, cast, description)</option>
-                        <option value="blog">Blog (posts, authors, tags)</option>
-                        <option value="employees">Company (departments, employees)</option>
-                    </select>
+            <div class="card">
+                <textarea id="home-paste-json" rows="14" spellcheck="false" placeholder='{"products": [...], "reviews": [...]}'></textarea>
+                <div class="grid-column gap-sm mt-sm">
+                    <input type="text" id="home-paste-name" placeholder="Dataset name (optional)">
+                    <button class="btn-primary" onclick="loadFromPaste()"><i class="ti ti-check"></i> Use This Data</button>
                 </div>
-                <div>
-                    <label>Records per collection:</label>
-                    <select id="gen-count">
-                        <option value="50">50 — quick demo</option>
-                        <option value="500" selected>500 — realistic</option>
-                        <option value="2000">2,000 — stress test</option>
-                        <option value="10000">10,000 — benchmark</option>
-                    </select>
-                </div>
-                <button class="btn-primary" onclick="generateDataset()"><i class="ti ti-wand"></i> Generate</button>
-                <button class="btn-secondary hidden" id="btn-download-generated" onclick="downloadGenerated()"><i class="ti ti-download"></i> Download as .json</button>
             </div>
-            <div id="gen-status" class="mt-sm text-sm"></div>
         </div>
-    </div>
-</div>
+
+        <!-- ── Upload ─────────────────────────────── -->
+        <div class="home-panel" id="home-panel-upload">
+            <h2><i class="ti ti-upload"></i> Upload File</h2>
+            <p class="text-secondary">Upload a local <code>.json</code> file (max 5 MB). The file is read in the browser — nothing leaves your machine here.</p>
+
+            <div class="card">
+                <div id="home-drop-zone" class="drop-zone" onclick="document.getElementById('home-file-input').click()">
+                    <i class="ti ti-file-upload drop-zone-icon"></i>
+                    <p class="drop-zone-label">Click to browse or drag &amp; drop</p>
+                </div>
+                <input type="file" id="home-file-input" accept=".json" class="hidden">
+                <div id="home-upload-status" class="text-sm mt-sm"></div>
+            </div>
+        </div>
+
+        <!-- ── Generate ───────────────────────────── -->
+        <div class="home-panel" id="home-panel-generate">
+            <h2><i class="ti ti-wand"></i> Generate Dataset</h2>
+            <p class="text-secondary">Generate realistic fake JSON to test the tools against.</p>
+
+            <div class="card">
+                <div class="grid-column gap-md">
+                    <div>
+                        <label>Type:</label>
+                        <select id="gen-type">
+                            <option value="ecommerce">E-commerce (products, reviews, orders)</option>
+                            <option value="movies">Movies &amp; TV (title, cast, description)</option>
+                            <option value="blog">Blog (posts, authors, tags)</option>
+                            <option value="employees">Company (departments, employees)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Records per collection:</label>
+                        <select id="gen-count">
+                            <option value="50">50 — quick demo</option>
+                            <option value="500" selected>500 — realistic</option>
+                            <option value="2000">2,000 — stress test</option>
+                            <option value="10000">10,000 — benchmark</option>
+                        </select>
+                    </div>
+                    <div class="grid-row gap-sm">
+                        <button class="btn-primary" onclick="generateDataset()"><i class="ti ti-wand"></i> Generate</button>
+                        <button class="btn-secondary hidden" id="btn-download-generated" onclick="downloadGenerated()"><i class="ti ti-download"></i> Download as .json</button>
+                    </div>
+                </div>
+                <div id="gen-status" class="mt-sm text-sm"></div>
+            </div>
+        </div>
+
+        <!-- ── Execution Mode ─────────────────────── -->
+        <div class="home-panel" id="home-panel-execution">
+            <h2><i class="ti ti-switch-3"></i> Execution Mode</h2>
+            <p class="text-secondary">Pick how the demo runs. <strong>Browser Preview</strong> keeps everything in this tab. <strong>Local API</strong> targets <code>http://localhost:5968</code>. <strong>Hosted API</strong> uses the public demo backend.</p>
+
+            <div class="card">
+                <div class="mode-form">
+                    <div>
+                        <label for="execution-mode">Mode:</label>
+                        <select id="execution-mode" onchange="setExecutionMode(this.value)">
+                            <option value="auto">Auto — localhost stays local, public site uses hosted API</option>
+                            <option value="localhost">Local API — http://localhost:5968</option>
+                            <option value="browser">Browser Preview — keep data in this tab</option>
+                            <option value="lambda">Hosted API — public demo backend</option>
+                        </select>
+                    </div>
+                    <div id="execution-mode-status" class="text-secondary text-sm"></div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /content -->
+</div><!-- /layout -->

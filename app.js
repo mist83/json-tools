@@ -83,6 +83,24 @@ function switchTool(name) {
     }
 }
 
+// ── Home Panel Navigation (within Home tab) ──────────────────────────────────
+
+function switchHomePanel(name) {
+    document.querySelectorAll('.sidebar-item[data-home-panel]').forEach(item =>
+        item.classList.toggle('active', item.dataset.homePanel === name));
+    document.querySelectorAll('.home-panel').forEach(panel =>
+        panel.classList.toggle('active', panel.id === `home-panel-${name}`));
+}
+
+// ── About Panel Navigation (within About tab) ────────────────────────────────
+
+function switchAboutPanel(name) {
+    document.querySelectorAll('.sidebar-item[data-about-panel]').forEach(item =>
+        item.classList.toggle('active', item.dataset.aboutPanel === name));
+    document.querySelectorAll('.about-panel').forEach(panel =>
+        panel.classList.toggle('active', panel.id === `about-panel-${name}`));
+}
+
 // ── Execution Mode ────────────────────────────────────────────────────────────
 
 function loadExecutionMode() {
@@ -191,13 +209,12 @@ function clearActiveDataset() {
 }
 
 function refreshSidebarLabel() {
-    const label = document.getElementById('sidebar-dataset-label');
-    if (!label) return;
-    if (_activeDataset) {
-        label.textContent = `${_activeDataset.name} (${fmtBytes(_activeDataset.sizeBytes)})`;
-    } else {
-        label.textContent = 'No data loaded';
-    }
+    const text = _activeDataset
+        ? `${_activeDataset.name} (${fmtBytes(_activeDataset.sizeBytes)})`
+        : 'No data loaded';
+    document.querySelectorAll('#sidebar-dataset-label, #home-sidebar-dataset-label').forEach(el => {
+        el.textContent = text;
+    });
 }
 
 function refreshNoDataBanner() {
@@ -268,11 +285,11 @@ function initHome() {
 
     const dropZone = document.getElementById('home-drop-zone');
     if (dropZone) {
-        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--color-primary)'; });
-        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('is-dragover'); });
         dropZone.addEventListener('drop', e => {
             e.preventDefault();
-            dropZone.style.borderColor = '';
+            dropZone.classList.remove('is-dragover');
             const file = e.dataTransfer.files[0];
             if (file) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
         });
