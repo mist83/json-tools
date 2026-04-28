@@ -3,12 +3,13 @@
   "name": "json-tools",
   "posterUrl": "https://mist83.github.io/_demo/json-tools/poster.png",
   "posterPath": "./demo/poster.png",
-  "videoUrl": "",
+  "videoUrl": "https://project-and.mullmania.com/films/cinema/film-06-json-tools-2026-04-28T05-04-58-770Z.mp4",
   "videoPath": "",
   "manifestUrl": "https://mist83.github.io/_demo/json-tools/manifest.json",
   "manifestPath": "./demo/manifest.json",
   "artifactBaseUrl": "https://mist83.github.io/_demo/json-tools/",
-  "hasVideo": false,
+  "hasVideo": true,
   "posterKind": "showcase-reel",
-  "posterNote": "Published screenshot for this repo."
+  "posterNote": "Published screenshot for this repo.",
+  "generatedAt": "2026-04-28T05:05:38Z"
 }
