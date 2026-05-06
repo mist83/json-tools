@@ -7,7 +7,7 @@
 const fs = require('fs');
 const puppeteer = require('puppeteer');
 
-const BASE_URL = process.env.BASE_URL || 'https://json-utilities.mullmania.com';
+const BASE_URL = process.env.BASE_URL || 'https://json-tools.mullmania.com';
 const HEADLESS = process.env.HEADLESS !== 'false';
 const API_TIMEOUT = 25000; // 25s — Lambda cold start can be slow
 const NAV_TIMEOUT = 30000;

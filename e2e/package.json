@@ -1,7 +1,7 @@
 {
-  "name": "json-utilities-e2e",
+  "name": "json-tools-e2e",
   "version": "1.0.0",
-  "description": "Exhaustive Puppeteer E2E tests for json-utilities.mullmania.com",
+  "description": "Exhaustive Puppeteer E2E tests for json-tools.mullmania.com",
   "main": "index.js",
   "scripts": {
     "test": "node tests/run.js",

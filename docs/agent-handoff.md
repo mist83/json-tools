@@ -161,7 +161,7 @@ No Blazor/WebAssembly code exists. The handoff plan is at `docs/blazor-wasm/READ
 
 ## Deployment
 
-- **Live demo:** https://json-utilities.mullmania.com
+- **Live demo:** https://json-tools.mullmania.com
 - **API:** Lambda URL in `plugin-registry.js` (`API_BASE`)
 - **Static files:** S3 + CloudFront (see `docs/` for deployment notes)
 

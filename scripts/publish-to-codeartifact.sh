@@ -102,7 +102,7 @@ done
 log "registering package metadata…"
 (cd "$PG_DIR" && PKG_NAME="JsonUtilities" \
     PKG_SOURCE_REPO="mist83/json-tools" \
-    PKG_SOURCE_SITE="https://json-utilities.mullmania.com/" \
+    PKG_SOURCE_SITE="https://json-tools.mullmania.com/" \
     PKG_DESCRIPTION="High-performance C# library for scanning large JSON files with byte-position tracking, path extraction, trie indexing, and semantic search — without full deserialization." \
     ./scripts/register-package.sh) || log "WARN: register-package failed (non-fatal)"
 
